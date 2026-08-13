@@ -30,9 +30,12 @@ def test_uc01_01_successful_trip_creation(authenticated_driver):
     destination = f"PA4 Da Nang {uuid4().hex[:6]}"
     _valid_trip(page, destination)
     page.submit()
+    page.generate_preview()
+    WebDriverWait(driver, AI_TIMEOUT).until(EC.visibility_of_element_located(("css selector", SELECTORS["save_trip_button"])))
+    page.save_trip()
+    page.open_saved_trip()
 
     WebDriverWait(driver, AI_TIMEOUT).until(EC.url_contains("/trips/"))
-    assert page.get_trip_status() == "Draft"
     driver.get(f"{BASE_URL}/home")
     cards = WebDriverWait(driver, AI_TIMEOUT).until(
         EC.visibility_of_all_elements_located(("css selector", SELECTORS["dashboard_trip_card"]))

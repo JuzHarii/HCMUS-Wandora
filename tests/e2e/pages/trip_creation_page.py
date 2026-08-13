@@ -9,12 +9,12 @@ Page object for UC01: Trip Creation and Preference Input.
 
 from config import SELECTORS
 from pages.base_page import BasePage
-from selenium.webdriver.support.ui import Select
 
 
 class TripCreationPage(BasePage):
     def open_trip_creation(self):
         self.open("/trips/new")
+        self.click(SELECTORS["trip_invitation_continue"])
         self.wait_visible(SELECTORS["trip_form"])
         return self
 
@@ -40,12 +40,22 @@ class TripCreationPage(BasePage):
             self.type_text(SELECTORS["trip_capacity_select"], capacity)
         if budget is not None:
             self.type_text(SELECTORS["trip_budget_select"], budget)
-        if style is not None:
-            Select(self.wait_visible(SELECTORS["trip_style_select"])).select_by_visible_text(style)
         return self
 
     def submit(self):
         self.click(SELECTORS["trip_continue_button"])
+        return self
+
+    def generate_preview(self):
+        self.click(SELECTORS["generate_preview_button"])
+        return self
+
+    def save_trip(self):
+        self.click(SELECTORS["save_trip_button"])
+        return self
+
+    def open_saved_trip(self):
+        self.click(SELECTORS["open_trip_workspace"])
         return self
 
     def get_validation_alert_text(self):

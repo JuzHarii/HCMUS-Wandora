@@ -13,9 +13,9 @@ if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
 from app.schemas.workspace import WorkspaceCreate
-from app.models import ItineraryVersion, Workspace
+from app.models import ItineraryDay, ItineraryVersion, Workspace
 from app.db.base import Base
-from app.schemas.itinerary import ActivityCreate, GenerateItineraryRequest, GeneratedItineraryPayload
+from app.schemas.itinerary import ActivityCreate, GenerateItineraryRequest, GeneratedItineraryPayload, ItineraryPreviewRequest, SaveItineraryDraftRequest
 from app.services.ai_service import AIService, GenerationResult
 from app.services.itinerary_service import ItineraryService
 
@@ -107,3 +107,27 @@ def test_uc02_regenerate_preserves_manual_activity_and_can_restore_a_snapshot(mo
     restored_plan = service.restore_version(workspace.id, version.id)
     assert restored_plan.days[0].title == "First plan"
     assert {activity.title for activity in restored_plan.days[0].activities} == {"AI activity from First plan", "My booked cooking class"}
+
+
+def test_uc02_preview_is_not_saved_until_the_user_accepts_it(monkeypatch):
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    db = Session(engine)
+    service = ItineraryService(db)
+    preview_draft = GeneratedItineraryPayload.model_validate(
+        {"days": [{"day_index": 1, "title": "Preview day", "travel_date": "2026-10-01", "activities": [{"title": "Preview stop"}]}]}
+    )
+    monkeypatch.setattr(service.ai_service, "generate_itinerary_draft", lambda _: GenerationResult(draft=preview_draft, source="fallback"))
+
+    preview = service.preview_itinerary(
+        ItineraryPreviewRequest(title="Da Nang preview", destination="Da Nang", start_date=date(2026, 10, 1), end_date=date(2026, 10, 1), group_size=2)
+    )
+    assert preview.draft.days[0].title == "Preview day"
+    assert db.scalar(select(func.count(ItineraryDay.id))) == 0
+
+    workspace = Workspace(title="Da Nang preview", destination="Da Nang", start_date=date(2026, 10, 1), end_date=date(2026, 10, 1))
+    db.add(workspace)
+    db.commit()
+    saved = service.save_itinerary_draft(workspace.id, SaveItineraryDraftRequest(source=preview.source, draft=preview.draft))
+    assert saved.days[0].activities[0].title == "Preview stop"
+    assert db.scalar(select(func.count(ItineraryDay.id))) == 1

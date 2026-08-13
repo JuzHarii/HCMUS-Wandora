@@ -6,12 +6,23 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_user, require_workspace_member
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.itinerary import AdjustItineraryRequest, GenerateItineraryRequest, ItineraryResponse, ItineraryVersionResponse
+from app.schemas.itinerary import AdjustItineraryRequest, GenerateItineraryRequest, ItineraryPreviewRequest, ItineraryPreviewResponse, ItineraryResponse, ItineraryVersionResponse, SaveItineraryDraftRequest
 from app.schemas.workspace import TripOverviewResponse, WorkspaceCreate, WorkspaceResponse
 from app.services.itinerary_service import ItineraryService
 from app.services.workspace_service import WorkspaceService
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
+
+
+@router.post("/preview-itinerary", response_model=ItineraryPreviewResponse)
+def preview_itinerary(
+    payload: ItineraryPreviewRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ItineraryPreviewResponse:
+    """Create a temporary AI draft before the user saves a workspace."""
+
+    return ItineraryService(db).preview_itinerary(payload)
 
 
 @router.get("", response_model=list[WorkspaceResponse])
@@ -35,6 +46,22 @@ def create_workspace(
     service = WorkspaceService(db)
     workspace = service.create_workspace(payload, current_user.id)
     return workspace
+
+
+@router.post("/{workspace_id}/save-itinerary", response_model=ItineraryResponse)
+def save_itinerary_draft(
+    workspace_id: str,
+    payload: SaveItineraryDraftRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ItineraryResponse:
+    service = ItineraryService(db)
+    try:
+        require_workspace_member(db, workspace_id, current_user.id)
+        return service.save_itinerary_draft(workspace_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
 
 
 @router.get("/{workspace_id}/overview", response_model=TripOverviewResponse)

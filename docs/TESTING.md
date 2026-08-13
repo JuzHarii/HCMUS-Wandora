@@ -22,8 +22,9 @@ It signs up and logs in a unique account, verifies the protected `/auth/me`
 endpoint, confirms an unauthenticated workspace request is rejected, then
 creates a uniquely named workspace, generates and reloads an itinerary, and
 verifies that the API rejects an invalid date range. The backend unit suite also
-checks that regenerating preserves manual activities and that a saved itinerary
-version can be restored.
+checks that a temporary AI preview is not persisted until it is accepted, that
+regenerating preserves manual activities, and that a saved itinerary version can
+be restored.
 
 ## End-to-end tests
 

@@ -41,10 +41,11 @@ page leads to the two implemented PA4 use cases:
 - **UC01 - Trip Creation and Preference Input:** submit destination, dates,
   group size, budget, travel style, and optional notes. Invalid dates and
   invalid numeric values are rejected in the UI and API.
-- **UC02 - AI Itinerary Generation:** the newly created trip is automatically
-  drafted, stored in Supabase, displayed by day, and can be regenerated. Manual
-  activities survive regeneration; the previous itinerary is saved as a restore
-  point in **History** (the latest 10 versions are retained).
+- **UC02 - AI Itinerary Generation:** review a temporary AI draft before the
+  trip is stored in Supabase. The user can edit or regenerate it, then save the
+  accepted itinerary. Manual activities survive later regeneration; the previous
+  itinerary is saved as a restore point in **History** (the latest 10 versions
+  are retained).
 
 Gemini is optional: if `GEMINI_API_KEY` is unset, times out, or returns an
 invalid response, Wandora uses a deterministic itinerary fallback so the demo

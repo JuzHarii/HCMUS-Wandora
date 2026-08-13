@@ -72,6 +72,29 @@ export type ItineraryVersion = {
   created_at: string
 }
 
+export type GeneratedActivity = {
+  start_time: string | null
+  end_time: string | null
+  title: string
+  location_name: string | null
+  activity_type: string | null
+  notes: string | null
+  external_url: string | null
+}
+
+export type GeneratedItineraryDay = {
+  day_index: number
+  title: string
+  summary: string | null
+  travel_date: string | null
+  activities: GeneratedActivity[]
+}
+
+export type ItineraryPreview = {
+  source: string
+  draft: { days: GeneratedItineraryDay[] }
+}
+
 export type TripOverview = {
   workspace: Workspace
   destinations: Array<{ destination_name: string; order_index: number }>
@@ -141,6 +164,20 @@ export function generateItinerary(workspaceId: string) {
   return request<Itinerary>(`/api/v1/workspaces/${workspaceId}/generate-itinerary`, {
     method: "POST",
     body: JSON.stringify({ force_regenerate: true }),
+  })
+}
+
+export function previewItinerary(payload: CreateWorkspaceInput) {
+  return request<ItineraryPreview>('/api/v1/workspaces/preview-itinerary', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function saveItineraryDraft(workspaceId: string, preview: ItineraryPreview) {
+  return request<Itinerary>(`/api/v1/workspaces/${workspaceId}/save-itinerary`, {
+    method: 'POST',
+    body: JSON.stringify({ source: preview.source, draft: preview.draft }),
   })
 }
 

@@ -4,6 +4,8 @@ from datetime import date, datetime, time
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
+from app.schemas.workspace import WorkspaceBase
+
 
 class ActivityBase(BaseModel):
     """Dữ liệu chung của một hoạt động."""
@@ -118,3 +120,17 @@ class GeneratedItineraryPayload(BaseModel):
     """Toàn bộ lịch trình do AI sinh ra."""
 
     days: list[GeneratedDayPayload]
+
+
+class ItineraryPreviewRequest(WorkspaceBase):
+    """Preference payload used to create a temporary, unsaved AI draft."""
+
+
+class ItineraryPreviewResponse(BaseModel):
+    source: str
+    draft: GeneratedItineraryPayload
+
+
+class SaveItineraryDraftRequest(BaseModel):
+    source: str
+    draft: GeneratedItineraryPayload

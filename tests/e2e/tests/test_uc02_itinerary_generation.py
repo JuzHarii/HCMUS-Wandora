@@ -24,6 +24,10 @@ def _create_trip_and_wait_for_itinerary(driver):
         style="Balanced",
     )
     page.submit()
+    page.generate_preview()
+    WebDriverWait(driver, AI_TIMEOUT).until(EC.visibility_of_element_located(("css selector", SELECTORS["save_trip_button"])))
+    page.save_trip()
+    page.open_saved_trip()
     WebDriverWait(driver, AI_TIMEOUT).until(EC.visibility_of_element_located(("css selector", SELECTORS["itinerary_view"])))
     return page
 

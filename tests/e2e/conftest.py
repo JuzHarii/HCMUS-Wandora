@@ -49,7 +49,7 @@ def authenticated_driver(driver):
     """Register a fresh account through the UI and land on the protected UC01 page."""
     email = f"pa4-e2e-{uuid4().hex[:12]}@example.com"
     AuthPage(driver).open_signup("%2Ftrips%2Fnew").sign_up("PA4 Test User", email, "TravelPass123!")
-    TripCreationPage(driver).wait_visible("[data-testid='trip-creation-form']")
+    TripCreationPage(driver).wait_visible("[data-testid='trip-invitation-continue']")
     return driver
 
 

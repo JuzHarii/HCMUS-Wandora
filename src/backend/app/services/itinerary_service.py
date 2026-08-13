@@ -17,8 +17,11 @@ from app.schemas.itinerary import (
     GenerateItineraryRequest,
     GeneratedItineraryPayload,
     ItineraryDayResponse,
+    ItineraryPreviewRequest,
+    ItineraryPreviewResponse,
     ItineraryResponse,
     ItineraryVersionResponse,
+    SaveItineraryDraftRequest,
 )
 from app.services.ai_service import AIService
 
@@ -51,6 +54,25 @@ class ItineraryService:
         result = self.ai_service.generate_itinerary_draft(self._workspace_context(workspace))
         self._persist_generated_itinerary(workspace_id, result.draft, replace_existing=True)
         self._record_generation(workspace, result.source)
+        return self.get_itinerary(workspace_id)
+
+    def preview_itinerary(self, request: ItineraryPreviewRequest) -> ItineraryPreviewResponse:
+        """Generate a temporary draft so users can review it before saving a trip."""
+
+        result = self.ai_service.generate_itinerary_draft(request.model_dump())
+        return ItineraryPreviewResponse(source=result.source, draft=result.draft)
+
+    def save_itinerary_draft(self, workspace_id: str, request: SaveItineraryDraftRequest) -> ItineraryResponse:
+        """Persist an accepted review draft onto a newly created workspace."""
+
+        workspace = self._get_workspace(workspace_id)
+        has_existing_days = self.db.scalar(
+            select(func.count(ItineraryDay.id)).where(ItineraryDay.workspace_id == workspace_id)
+        ) > 0
+        if has_existing_days:
+            raise ValueError("This trip already has an itinerary.")
+        self._persist_generated_itinerary(workspace_id, request.draft, replace_existing=False)
+        self._record_generation(workspace, request.source)
         return self.get_itinerary(workspace_id)
 
     def initialize_blank_itinerary(self, workspace_id: str) -> ItineraryResponse:
