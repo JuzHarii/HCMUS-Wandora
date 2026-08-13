@@ -3,7 +3,7 @@
 from datetime import date, datetime, time
 from uuid import uuid4
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, Time
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, String, Text, Time
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -47,3 +47,15 @@ class ItineraryActivity(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     day: Mapped[ItineraryDay] = relationship(back_populates="activities")
+
+
+class ItineraryVersion(Base):
+    """Snapshot khôi phục được, lưu trước mỗi lần AI thay itinerary."""
+
+    __tablename__ = "itinerary_versions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    workspace_id: Mapped[str] = mapped_column(String(36), ForeignKey("workspaces.id"), nullable=False, index=True)
+    generation_source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    snapshot: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)

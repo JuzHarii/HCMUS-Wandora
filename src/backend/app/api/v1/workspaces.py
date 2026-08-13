@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_user, require_workspace_member
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.itinerary import AdjustItineraryRequest, GenerateItineraryRequest, ItineraryResponse
+from app.schemas.itinerary import AdjustItineraryRequest, GenerateItineraryRequest, ItineraryResponse, ItineraryVersionResponse
 from app.schemas.workspace import TripOverviewResponse, WorkspaceCreate, WorkspaceResponse
 from app.services.itinerary_service import ItineraryService
 from app.services.workspace_service import WorkspaceService
@@ -66,6 +66,22 @@ def generate_itinerary(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
+@router.post("/{workspace_id}/initialize-blank-itinerary", response_model=ItineraryResponse)
+def initialize_blank_itinerary(
+    workspace_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ItineraryResponse:
+    """Khởi tạo các ngày trống để người dùng tự lập kế hoạch khi AI không khả dụng."""
+
+    service = ItineraryService(db)
+    try:
+        require_workspace_member(db, workspace_id, current_user.id)
+        return service.initialize_blank_itinerary(workspace_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
 @router.get("/{workspace_id}/itinerary", response_model=ItineraryResponse)
 def get_itinerary(workspace_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> ItineraryResponse:
     """Xem lịch trình đúng theo đường dẫn UI yêu cầu."""
@@ -74,6 +90,23 @@ def get_itinerary(workspace_id: str, db: Session = Depends(get_db), current_user
     try:
         require_workspace_member(db, workspace_id, current_user.id)
         return service.get_itinerary(workspace_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.get("/{workspace_id}/itinerary-versions", response_model=list[ItineraryVersionResponse])
+def list_itinerary_versions(workspace_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[ItineraryVersionResponse]:
+    service = ItineraryService(db)
+    require_workspace_member(db, workspace_id, current_user.id)
+    return service.list_versions(workspace_id)
+
+
+@router.post("/{workspace_id}/itinerary-versions/{version_id}/restore", response_model=ItineraryResponse)
+def restore_itinerary_version(workspace_id: str, version_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> ItineraryResponse:
+    service = ItineraryService(db)
+    try:
+        require_workspace_member(db, workspace_id, current_user.id)
+        return service.restore_version(workspace_id, version_id)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 

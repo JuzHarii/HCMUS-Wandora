@@ -67,7 +67,17 @@ class ItineraryResponse(BaseModel):
     """Phản hồi xem lịch trình dạng timeline/map."""
 
     workspace_id: str
+    generation_source: str | None = None
+    generated_at: datetime | None = None
     days: list[ItineraryDayResponse]
+
+
+class ItineraryVersionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    generation_source: str | None = None
+    created_at: datetime
 
 
 class GenerateItineraryRequest(BaseModel):

@@ -28,7 +28,8 @@ class Settings(BaseSettings):
     db_pool_size: int = Field(default=5, ge=1, alias="DB_POOL_SIZE")
     db_max_overflow: int = Field(default=5, ge=0, alias="DB_MAX_OVERFLOW")
     gemini_api_key: str | None = Field(default=None, alias="GEMINI_API_KEY")
-    gemini_model: str = Field(default="gemini-2.0-flash", alias="GEMINI_MODEL")
+    gemini_model: str = Field(default="gemini-3.6-flash", alias="GEMINI_MODEL")
+    gemini_timeout_seconds: int = Field(default=25, ge=5, le=120, alias="GEMINI_TIMEOUT_SECONDS")
     jwt_secret_key: str = Field(min_length=32, alias="JWT_SECRET_KEY")
     jwt_expire_minutes: int = Field(default=10080, ge=15, alias="JWT_EXPIRE_MINUTES")
 

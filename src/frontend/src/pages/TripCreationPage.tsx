@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router'
 
 import { FormField } from '@/components/forms/FormField'
 import { WorkspaceShell } from '@/components/layout/WorkspaceShell'
-import { createWorkspace, generateItinerary, type Workspace } from '@/lib/api'
+import { createWorkspace, generateItinerary, initializeBlankItinerary, type Workspace } from '@/lib/api'
 
 type TripFormValues = {
   destination: string
@@ -50,6 +50,19 @@ export function TripCreationPage() {
       navigate(`/trips/${workspace.id}`)
     } catch (error) {
       setApiError(error instanceof Error ? error.message : 'Could not generate the itinerary.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function initializeBlankAndOpen(workspace: Workspace) {
+    setIsSubmitting(true)
+    setApiError('')
+    try {
+      await initializeBlankItinerary(workspace.id)
+      navigate(`/trips/${workspace.id}`)
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Could not initialize a blank itinerary.')
     } finally {
       setIsSubmitting(false)
     }
@@ -103,7 +116,7 @@ export function TripCreationPage() {
                 <FormField className="full-width" label="Notes for the first draft"><textarea value={form.notes} onChange={(event) => updateField('notes', event.target.value)} rows={4} placeholder="Places, pace, dietary needs, or anything the group agrees on." /></FormField>
               </div>
               {apiError && <div className="flow-error" role="alert"><CircleAlert aria-hidden="true" /><span>{apiError}</span></div>}
-              {createdWorkspace && apiError ? <button className="flow-submit" type="button" onClick={() => void generateAndOpen(createdWorkspace)} disabled={isSubmitting}>{isSubmitting ? <><LoaderCircle className="spin" aria-hidden="true" /> Drafting itinerary…</> : <>Retry itinerary generation <ArrowRight aria-hidden="true" /></>}</button> : <button data-testid="trip-continue-button" className="flow-submit" type="submit" disabled={isSubmitting}>{isSubmitting ? <><LoaderCircle className="spin" aria-hidden="true" /> <span data-testid="ai-generation-indicator">Saving trip and drafting route…</span></> : <>Create trip and draft route <ArrowRight aria-hidden="true" /></>}</button>}
+              {createdWorkspace && apiError ? <div className="generation-recovery-actions"><button className="flow-submit" type="button" onClick={() => void generateAndOpen(createdWorkspace)} disabled={isSubmitting}>{isSubmitting ? <><LoaderCircle className="spin" aria-hidden="true" /> Drafting itinerary…</> : <>Retry itinerary generation <ArrowRight aria-hidden="true" /></>}</button><button className="recovery-link" type="button" onClick={() => void initializeBlankAndOpen(createdWorkspace)} disabled={isSubmitting}>Start with a blank itinerary</button></div> : <button data-testid="trip-continue-button" className="flow-submit" type="submit" disabled={isSubmitting}>{isSubmitting ? <><LoaderCircle className="spin" aria-hidden="true" /> <span data-testid="ai-generation-indicator">Saving trip and drafting route…</span></> : <>Create trip and draft route <ArrowRight aria-hidden="true" /></>}</button>}
             </form>
           </div>
         </section>

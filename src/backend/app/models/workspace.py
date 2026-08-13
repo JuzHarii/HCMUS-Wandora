@@ -17,6 +17,8 @@ class Workspace(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="Draft", nullable=False)
+    itinerary_source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    itinerary_generated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     destination: Mapped[str] = mapped_column(String(255), nullable=False)
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     end_date: Mapped[date | None] = mapped_column(Date, nullable=True)

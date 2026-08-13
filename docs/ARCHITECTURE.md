@@ -40,7 +40,7 @@ does not run DDL. This keeps local, CI, and Supabase schema state reproducible.
 
 Supabase is used as managed PostgreSQL, not as a browser-accessed database API.
 The backend uses the connection URI in the root `.env`; the frontend does not
-have access to it. The current database is at Alembic revision `f90ac4e2d112`.
+have access to it. The current database is at Alembic revision `e5f0a1b2c3d4`.
 
 Accounts are application-managed: FastAPI stores Argon2 password hashes in
 `users`, issues signed JWT bearer sessions, and checks `workspace_members`

@@ -37,6 +37,8 @@ class WorkspaceResponse(WorkspaceBase):
 
     id: str
     status: str
+    itinerary_source: str | None = None
+    itinerary_generated_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 

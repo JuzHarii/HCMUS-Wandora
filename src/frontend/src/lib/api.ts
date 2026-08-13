@@ -20,6 +20,8 @@ export type Workspace = {
   id: string
   title: string
   status: string
+  itinerary_source: string | null
+  itinerary_generated_at: string | null
   destination: string
   start_date: string | null
   end_date: string | null
@@ -59,7 +61,23 @@ export type ItineraryDay = {
 
 export type Itinerary = {
   workspace_id: string
+  generation_source: string | null
+  generated_at: string | null
   days: ItineraryDay[]
+}
+
+export type ItineraryVersion = {
+  id: string
+  generation_source: string | null
+  created_at: string
+}
+
+export type TripOverview = {
+  workspace: Workspace
+  destinations: Array<{ destination_name: string; order_index: number }>
+  itinerary_days: number
+  itinerary_activities: number
+  manual_activities: number
 }
 
 export type CreateWorkspaceInput = {
@@ -126,10 +144,44 @@ export function generateItinerary(workspaceId: string) {
   })
 }
 
+export type CreateActivityInput = {
+  day_id: string
+  title: string
+  start_time?: string
+  end_time?: string
+  location_name?: string
+  notes?: string
+  activity_type?: string
+  external_url?: string
+}
+
+export function initializeBlankItinerary(workspaceId: string) {
+  return request<Itinerary>(`/api/v1/workspaces/${workspaceId}/initialize-blank-itinerary`, {
+    method: 'POST',
+  })
+}
+
+export function addItineraryActivity(payload: CreateActivityInput) {
+  return request<Activity>('/api/v1/itineraries/activities', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function getTripOverview(workspaceId: string) {
-  return request<{ workspace: Workspace }>(`/api/v1/workspaces/${workspaceId}/overview`)
+  return request<TripOverview>(`/api/v1/workspaces/${workspaceId}/overview`)
 }
 
 export function getItinerary(workspaceId: string) {
   return request<Itinerary>(`/api/v1/workspaces/${workspaceId}/itinerary`)
+}
+
+export function listItineraryVersions(workspaceId: string) {
+  return request<ItineraryVersion[]>(`/api/v1/workspaces/${workspaceId}/itinerary-versions`)
+}
+
+export function restoreItineraryVersion(workspaceId: string, versionId: string) {
+  return request<Itinerary>(`/api/v1/workspaces/${workspaceId}/itinerary-versions/${versionId}/restore`, {
+    method: 'POST',
+  })
 }
