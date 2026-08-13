@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+*.db
+.env
+backups/
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+tests/e2e/screenshots/

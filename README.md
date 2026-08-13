@@ -1,61 +1,66 @@
 # HCMUS Wandora
 
-Wandora is a web application for AI-assisted group travel planning. The project helps users create trips, collaborate with invited members, generate itinerary suggestions, manage day-by-day activities, and maintain shared travel notes or packing lists.
+Wandora is a web application for AI-assisted group travel planning. It provides
+a shared workspace for destinations, itinerary drafts, activities, notes, and
+packing preparation.
 
-## Tech Stack
-
-- Frontend: React, Vite, TypeScript
-- Backend: Python, FastAPI
-- Database: PostgreSQL
-- Realtime communication: WebSocket
-- AI integration: OpenAI or Gemini API through the backend
-- Source control: GitHub
-- Project management: Jira
-
-## Project Structure
+## Repository layout
 
 ```text
 .
-+-- docs/                 Project documents and planning materials
-+-- pa/                   Course assignment submissions and references
-`-- src/
-    `-- frontend/         React + Vite frontend application
+├── src/backend/   FastAPI application, SQLAlchemy models, Alembic migrations
+├── src/frontend/  React + Vite application
+├── tests/e2e/     Selenium end-to-end tests and page objects
+├── scripts/       One-off operational and manual smoke scripts
+├── docs/          Architecture, development, testing, and Supabase runbooks
+├── pa/            Course assignment artefacts (not application source)
+└── backups/       Ignored local backup files; never commit these
 ```
 
-## Frontend Setup
+## Quick start
 
-Go to the frontend folder:
+1. Copy `.env.example` to `.env`, set the Supabase `DATABASE_URL`, and set a
+   random `JWT_SECRET_KEY` (at least 32 characters).
+2. Install backend dependencies: `pip install -r src/backend/requirements.txt`.
+3. Apply schema migrations: `python -m alembic -c src/backend/alembic.ini upgrade head`.
+4. Run the API: `uvicorn --app-dir src/backend main:app --reload`.
+5. In another terminal, copy `src/frontend/.env.example` to `src/frontend/.env`, then run `cd src/frontend; npm install; npm run dev`.
 
-```bash
-cd src/frontend
-```
+Verify database access at `GET http://127.0.0.1:8000/health/db`.
 
-Install dependencies:
+## PA4 working flows
 
-```bash
-npm install
-```
+Open `http://127.0.0.1:5173` for the public landing page. After sign-in, the
+app opens **My trips** at `/home`, where private workspaces are listed. Use
+**New trip** to begin planning; a landing-page CTA still takes a signed-in user
+directly to the creation flow. Accounts are stored in the application's `users` table on
+Supabase PostgreSQL; passwords are Argon2 hashes and the browser receives a
+signed bearer session token, never the database credentials. The landing
+page leads to the two implemented PA4 use cases:
 
-Start the development server:
+- **UC01 - Trip Creation and Preference Input:** submit destination, dates,
+  group size, budget, travel style, and optional notes. Invalid dates and
+  invalid numeric values are rejected in the UI and API.
+- **UC02 - AI Itinerary Generation:** the newly created trip is automatically
+  drafted, stored in Supabase, displayed by day, and can be regenerated.
 
-```bash
-npm run dev
-```
+Gemini is optional: if `GEMINI_API_KEY` is unset or the request fails, Wandora
+uses a deterministic itinerary fallback so the demo remains runnable.
 
-Create a production build:
+## Accounts and access
 
-```bash
-npm run build
-```
+- `POST /api/v1/auth/signup` creates an account and returns a bearer session.
+- `POST /api/v1/auth/login` starts a session for an existing account.
+- `GET /api/v1/auth/me` returns the authenticated account.
+- Trip and itinerary endpoints require a bearer token and only allow members of
+  the corresponding workspace. A newly created trip is owned by its creator.
 
-Run lint checks:
+This is application-managed JWT authentication backed by Supabase PostgreSQL;
+it does not require a Supabase Auth project key.
 
-```bash
-npm run lint
-```
+## Documentation
 
-## Current Status
-
-The frontend project has been initialized with React, Vite, and TypeScript. It currently contains a minimal placeholder screen only; the landing page and application screens have not been implemented yet.
-
-The backend and database layers are planned as part of the architecture but have not been set up in the source folder yet.
+- [Architecture](docs/ARCHITECTURE.md)
+- [Development workflow](docs/DEVELOPMENT.md)
+- [Testing](docs/TESTING.md)
+- [Supabase operations](docs/SUPABASE.md)
