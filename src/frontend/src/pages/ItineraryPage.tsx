@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { ArrowUpRight, CalendarPlus, CircleAlert, Compass, History, LayoutGrid, LoaderCircle, RotateCcw } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { ArrowUpRight, CalendarPlus, CircleAlert, Compass, History, LayoutGrid, LoaderCircle, Plus, RotateCcw, Trash2, Undo2 } from 'lucide-react'
 import { Link, useParams } from 'react-router'
 
 import { WorkspaceShell } from '@/components/layout/WorkspaceShell'
-import { addItineraryActivity, generateItinerary, getItinerary, getTripOverview, initializeBlankItinerary, listItineraryVersions, restoreItineraryVersion, type Itinerary, type ItineraryDay, type ItineraryVersion, type Workspace } from '@/lib/api'
+import { addItineraryActivity, deleteItineraryActivity, generateItinerary, getItinerary, getTripOverview, initializeBlankItinerary, listItineraryVersions, restoreItineraryVersion, type Activity, type Itinerary, type ItineraryDay, type ItineraryVersion, type Workspace } from '@/lib/api'
 import { formatDateRange, formatDay, formatTime } from '@/lib/trip-formatters'
 
 export function ItineraryPage() {
@@ -91,7 +91,7 @@ export function ItineraryPage() {
         {error && <div className="inline-error" role="alert"><CircleAlert aria-hidden="true" /><span>{error}</span><button className="recovery-link" type="button" onClick={() => void initializeBlank()} disabled={isInitializingBlank}>{isInitializingBlank ? 'Preparing blank itinerary…' : 'Start with a blank itinerary'}</button></div>}
         {isHistoryOpen && <section className="itinerary-history" aria-label="Itinerary version history"><div><p className="dashboard-kicker">Version history</p><h2>Restore a previous draft</h2><p>Each AI regeneration saves the itinerary that came before it.</p></div>{versions.length === 0 ? <p className="history-empty">No previous versions yet. Regenerate once to create a restore point.</p> : <ol>{versions.map((version) => <li key={version.id}><div><strong>{formatGenerationSource(version.generation_source)}</strong><span>{formatVersionTime(version.created_at)}</span></div><button className="workspace-back-link" type="button" onClick={() => void restoreVersion(version)} disabled={isRestoring}>{isRestoring ? <LoaderCircle className="spin" aria-hidden="true" /> : <RotateCcw aria-hidden="true" />} Restore</button></li>)}</ol>}</section>}
         <section data-testid="itinerary-view" className="itinerary-timeline" aria-label="Generated itinerary">
-          {itinerary?.days.map((day) => <DayCard day={day} key={day.id} onActivityCreated={loadTrip} />)}
+          {itinerary?.days.map((day) => <DayCardEnhanced day={day} key={day.id} onActivityChanged={loadTrip} />)}
         </section>
       </div>
     </WorkspaceShell>
@@ -109,7 +109,73 @@ function formatVersionTime(value: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }
 
-function DayCard({ day, onActivityCreated }: { day: ItineraryDay; onActivityCreated: () => Promise<void> }) {
+function DayCardEnhanced({ day, onActivityChanged }: { day: ItineraryDay; onActivityChanged: () => Promise<void> }) {
+  const [isAddingActivity, setIsAddingActivity] = useState(false)
+  const [title, setTitle] = useState('')
+  const [startTime, setStartTime] = useState('')
+  const [endTime, setEndTime] = useState('')
+  const [locationName, setLocationName] = useState('')
+  const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [pendingDeletion, setPendingDeletion] = useState<Activity | null>(null)
+  const deleteTimer = useRef<number | null>(null)
+
+  useEffect(() => () => {
+    if (deleteTimer.current !== null) window.clearTimeout(deleteTimer.current)
+  }, [])
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!title.trim() || !startTime || !endTime) return setError('Add a name, start time, and end time.')
+    if (endTime <= startTime) return setError('End time must be after start time.')
+    setIsSubmitting(true)
+    setError('')
+    try {
+      await addItineraryActivity({ day_id: day.id, title: title.trim(), start_time: startTime, end_time: endTime, location_name: locationName.trim() || undefined })
+      await onActivityChanged()
+      setTitle('')
+      setStartTime('')
+      setEndTime('')
+      setLocationName('')
+      setIsAddingActivity(false)
+    } catch (activityError) {
+      setError(activityError instanceof Error ? activityError.message : 'Could not add this activity.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  function scheduleDelete(activity: Activity) {
+    if (deleteTimer.current !== null) window.clearTimeout(deleteTimer.current)
+    setError('')
+    setPendingDeletion(activity)
+    deleteTimer.current = window.setTimeout(() => { void commitDelete(activity) }, 5000)
+  }
+
+  async function commitDelete(activity: Activity) {
+    deleteTimer.current = null
+    try {
+      await deleteItineraryActivity(activity.id)
+      await onActivityChanged()
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Could not remove this activity.')
+    } finally {
+      setPendingDeletion(null)
+    }
+  }
+
+  function undoDelete() {
+    if (deleteTimer.current !== null) window.clearTimeout(deleteTimer.current)
+    deleteTimer.current = null
+    setPendingDeletion(null)
+  }
+
+  const visibleActivities = day.activities.filter((activity) => activity.id !== pendingDeletion?.id)
+
+  return <article className="day-card"><header><div><span>Day {day.day_index}</span><h2>{day.title}</h2></div><time>{formatDay(day.travel_date)}</time></header>{day.summary && <p className="day-summary">{day.summary}</p>}{visibleActivities.length > 0 ? <ol className="activity-list">{visibleActivities.map((activity) => <li key={activity.id} data-testid="activity-row" className="activity-row"><time>{formatTime(activity.start_time)}{activity.end_time ? ` - ${formatTime(activity.end_time)}` : ''}</time><div className="activity-marker" /><div><h3>{activity.title}</h3>{activity.location_name && <p>{activity.location_name}</p>}{activity.notes && <p className="activity-note">{activity.notes}</p>}{activity.external_url && <a href={activity.external_url} target="_blank" rel="noreferrer">Open map <ArrowUpRight aria-hidden="true" /></a>}</div><button className="activity-icon-button" type="button" aria-label={`Remove ${activity.title}`} title="Remove activity" onClick={() => scheduleDelete(activity)}><Trash2 aria-hidden="true" /></button></li>)}</ol> : <div className="blank-day"><p>No activities yet. Add the first stop for this day.</p></div>}{pendingDeletion && <div className="activity-undo" role="status"><span>{pendingDeletion.title} removed.</span><button type="button" onClick={undoDelete}><Undo2 aria-hidden="true" /> Undo</button></div>}{!isAddingActivity && <button className="draft-add-activity workspace-add-activity" type="button" onClick={() => setIsAddingActivity(true)}><Plus aria-hidden="true" /> Add activity</button>}{isAddingActivity && <form className="manual-activity-form" onSubmit={submit}><label>Activity<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. Visit local market" autoFocus /></label><label>Start time<input type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} /></label><label>End time<input type="time" value={endTime} onChange={(event) => setEndTime(event.target.value)} /></label><label className="activity-location-field">Location<input value={locationName} onChange={(event) => setLocationName(event.target.value)} placeholder="Optional location" /></label>{error && <p className="form-error" role="alert">{error}</p>}<div><button className="dashboard-create-button" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Adding...' : 'Add activity'}</button><button className="recovery-link" type="button" onClick={() => { setIsAddingActivity(false); setError('') }} disabled={isSubmitting}>Cancel</button></div></form>}{error && !isAddingActivity && <p className="form-error" role="alert">{error}</p>}</article>
+}
+
+export function DayCard({ day, onActivityCreated }: { day: ItineraryDay; onActivityCreated: () => Promise<void> }) {
   const [isAddingActivity, setIsAddingActivity] = useState(false)
   const [title, setTitle] = useState('')
   const [startTime, setStartTime] = useState('')

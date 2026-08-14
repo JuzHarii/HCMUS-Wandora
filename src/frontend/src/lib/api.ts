@@ -72,6 +72,17 @@ export type ItineraryVersion = {
   created_at: string
 }
 
+export type PackingItem = {
+  id: string
+  workspace_id: string
+  name: string
+  quantity: number
+  note: string | null
+  assigned_to: string | null
+  is_completed: boolean
+  created_at: string
+}
+
 export type GeneratedActivity = {
   start_time: string | null
   end_time: string | null
@@ -134,6 +145,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
       : body.detail
     throw new Error(detail || "Không thể hoàn tất yêu cầu. Vui lòng thử lại.")
   }
+  if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
 }
 
@@ -205,6 +217,12 @@ export function addItineraryActivity(payload: CreateActivityInput) {
   })
 }
 
+export function deleteItineraryActivity(activityId: string) {
+  return request<void>(`/api/v1/itineraries/activities/${activityId}`, {
+    method: 'DELETE',
+  })
+}
+
 export function getTripOverview(workspaceId: string) {
   return request<TripOverview>(`/api/v1/workspaces/${workspaceId}/overview`)
 }
@@ -220,5 +238,23 @@ export function listItineraryVersions(workspaceId: string) {
 export function restoreItineraryVersion(workspaceId: string, versionId: string) {
   return request<Itinerary>(`/api/v1/workspaces/${workspaceId}/itinerary-versions/${versionId}/restore`, {
     method: 'POST',
+  })
+}
+
+export function listPackingItems(workspaceId: string) {
+  return request<PackingItem[]>(`/api/v1/workspaces/${workspaceId}/packing-items`)
+}
+
+export function createPackingItem(workspaceId: string, payload: Pick<PackingItem, 'name' | 'quantity' | 'note' | 'assigned_to'>) {
+  return request<PackingItem>(`/api/v1/workspaces/${workspaceId}/packing-items`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updatePackingItem(itemId: string, payload: Partial<Pick<PackingItem, 'name' | 'quantity' | 'note' | 'assigned_to' | 'is_completed'>>) {
+  return request<PackingItem>(`/api/v1/packing-items/${itemId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
   })
 }

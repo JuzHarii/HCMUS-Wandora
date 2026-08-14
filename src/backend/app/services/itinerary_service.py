@@ -185,12 +185,20 @@ class ItineraryService:
         self.db.refresh(activity)
         return self._to_activity_response(activity)
 
+    def delete_activity(self, activity_id: str) -> None:
+        """Remove an activity after the API has checked workspace membership."""
+
+        activity = self.get_activity(activity_id)
+        self.db.delete(activity)
+        self.db.commit()
+
     def adjust_itinerary(self, workspace_id: str, request: AdjustItineraryRequest) -> ItineraryResponse:
         """Điều chỉnh lịch trình qua câu lệnh tiếng Việt tự nhiên."""
 
         workspace = self._get_workspace(workspace_id)
+        self._snapshot_current_itinerary(workspace)
         result = self.ai_service.generate_itinerary_draft(self._workspace_context(workspace), request.instruction)
-        self._persist_generated_itinerary(workspace_id, result.draft, replace_existing=False)
+        self._persist_generated_itinerary(workspace_id, result.draft, replace_existing=True)
         self._record_generation(workspace, result.source)
         return self.get_itinerary(workspace_id)
 

@@ -59,3 +59,23 @@ def update_activity(
         return service.update_activity(activity_id, payload)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.delete("/activities/{activity_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_activity(
+    activity_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """Delete an itinerary activity for a member of its workspace."""
+
+    service = ItineraryService(db)
+    try:
+        activity = service.get_activity(activity_id)
+        day = db.get(ItineraryDay, activity.day_id)
+        if day is None:
+            raise ValueError("Itinerary day does not exist.")
+        require_workspace_member(db, day.workspace_id, current_user.id)
+        service.delete_activity(activity_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

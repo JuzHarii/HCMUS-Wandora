@@ -8,6 +8,7 @@ const AuthPage = lazy(() => import('@/pages/AuthPage').then(({ AuthPage }) => ({
 const TripDashboardPage = lazy(() => import('@/pages/TripDashboardPage').then(({ TripDashboardPage }) => ({ default: TripDashboardPage })))
 const TripCreationPage = lazy(() => import('@/pages/TripCreationPage').then(({ TripCreationPage }) => ({ default: TripCreationPage })))
 const ItineraryPage = lazy(() => import('@/pages/ItineraryPage').then(({ ItineraryPage }) => ({ default: ItineraryPage })))
+const PackingPage = lazy(() => import('@/pages/PackingPage').then(({ PackingPage }) => ({ default: PackingPage })))
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
           <Route path="/trips" element={<Navigate replace to="/home" />} />
           <Route path="/trips/new" element={<RequireAuth><TripCreationPage /></RequireAuth>} />
           <Route path="/trips/:workspaceId" element={<RequireAuth><ItineraryPage /></RequireAuth>} />
+          <Route path="/trips/:workspaceId/packing" element={<RequireAuth><PackingPage /></RequireAuth>} />
           <Route path="*" element={<Navigate replace to="/" />} />
         </Routes>
       </Suspense>
