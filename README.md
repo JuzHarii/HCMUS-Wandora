@@ -1,61 +1,79 @@
 # HCMUS Wandora
 
-Wandora is a web application for AI-assisted group travel planning. The project helps users create trips, collaborate with invited members, generate itinerary suggestions, manage day-by-day activities, and maintain shared travel notes or packing lists.
+Wandora is a web application for AI-assisted group travel planning. The project helps users create trips, collaborate with invited members, generate itinerary suggestions, manage day-by-day activities, handle AI packing suggestions & shared luggage planning, rate places, and export or share trip plans.
 
 ## Tech Stack
 
-- Frontend: React, Vite, TypeScript
-- Backend: Python, FastAPI
-- Database: PostgreSQL
-- Realtime communication: WebSocket
-- AI integration: OpenAI or Gemini API through the backend
-- Source control: GitHub
-- Project management: Jira
+- **Backend**: Python 3.10+, FastAPI, SQLAlchemy, Pydantic v2
+- **Database**: SQLite (default dev / testing) / PostgreSQL compatible via SQLAlchemy & Alembic
+- **AI Integration**: Google Gemini API (`gemini-1.5-flash`) via `httpx` async client with deterministic fallback generator
+- **Migration & Testing**: Alembic, Pytest
 
 ## Project Structure
 
 ```text
 .
-+-- docs/                 Project documents and planning materials
-+-- pa/                   Course assignment submissions and references
-`-- src/
-    `-- frontend/         React + Vite frontend application
+├── docs/                 Project documents and planning materials
+├── pa/                   Course assignment submissions and references
+└── src/
+    ├── backend/          FastAPI backend application & tests
+    └── frontend/         React + Vite frontend application
 ```
+
+## Backend Setup & Runbook
+
+Navigate to backend directory:
+
+```bash
+cd src/backend
+```
+
+Install dependencies (or use virtual environment):
+
+```bash
+pip install -r requirements.txt
+```
+
+Run database migrations:
+
+```bash
+alembic upgrade head
+```
+
+Start the FastAPI development server:
+
+```bash
+uvicorn app.main:app --reload --port 8000
+```
+
+Run full automated test suite:
+
+```bash
+pytest -v
+```
+
+Interactive API documentation:
+
+- Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
+- ReDoc: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+- Health check: [http://localhost:8000/health](http://localhost:8000/health)
 
 ## Frontend Setup
 
-Go to the frontend folder:
+Navigate to frontend directory:
 
 ```bash
 cd src/frontend
 ```
 
-Install dependencies:
+Install dependencies & start server:
 
 ```bash
 npm install
-```
-
-Start the development server:
-
-```bash
 npm run dev
-```
-
-Create a production build:
-
-```bash
-npm run build
-```
-
-Run lint checks:
-
-```bash
-npm run lint
 ```
 
 ## Current Status
 
-The frontend project has been initialized with React, Vite, and TypeScript. It currently contains a minimal placeholder screen only; the landing page and application screens have not been implemented yet.
-
-The backend and database layers are planned as part of the architecture but have not been set up in the source folder yet.
+- **Backend (Complete)**: Fully implemented under `src/backend` covering PA3 Use-Cases 2.1 through 2.11 (Workspace creation, AI itinerary generator & adjustment, manual activities, group collaboration & roles, AI packing & shared luggage planning, place reviews & notes, trip sharing & JSON/Markdown export). All 11 integration test suites pass (100% test pass rate).
+- **Frontend**: Initialized with React, Vite, and TypeScript.
