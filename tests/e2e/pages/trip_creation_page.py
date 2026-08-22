@@ -1,7 +1,11 @@
 """
 trip_creation_page.py
 ----------------------
-Page object for UC01: Trip Creation and Preference Input.
+Page object for UC01: Trip Creation and Preference Input, UC02: AI
+Itinerary Generation, and UC13: Review and Save AI Itinerary (the preview
+screen shown between "Generate Preview" and "Save Trip" is the same
+screen UC13 tests exercise, so its methods live here alongside the rest
+of the creation flow).
 
     Mirrors the Basic Flow from the Use-Case Specification. The route is
     protected, so tests must authenticate before opening this page.
@@ -12,6 +16,7 @@ from pages.base_page import BasePage
 
 
 class TripCreationPage(BasePage):
+    # -- UC01: Trip Creation and Preference Input ----------------
     def open_trip_creation(self):
         self.open("/trips/new")
         self.click(SELECTORS["trip_invitation_continue"])
@@ -82,3 +87,32 @@ class TripCreationPage(BasePage):
             value,
         )
         return self
+    # -- UC13: Review and Save AI Itinerary (preview screen) ----------------
+    def edit_preview_activity(self, activity_index, new_text):
+        rows = self.driver.find_elements("css selector", SELECTORS["preview_activity_row"])
+        rows[activity_index].click()
+        rows[activity_index].clear()
+        rows[activity_index].send_keys(new_text)
+        return self
+ 
+    def get_preview_activity_texts(self):
+        return [row.text for row in self.driver.find_elements("css selector", SELECTORS["preview_activity_row"])]
+ 
+    def back_to_details(self):
+        self.click(SELECTORS["back_to_details_button"])
+        return self
+ 
+    def leave_preview_without_saving(self):
+        self.click(SELECTORS["leave_preview_cancel_button"])
+        return self
+ 
+    def get_leave_preview_warning_text(self):
+        return self.get_text(SELECTORS["leave_preview_warning"])
+ 
+    def confirm_leave_preview(self):
+        self.click(SELECTORS["leave_preview_confirm_button"])
+        return self
+ 
+    # -- UC16: Duplicate/Similar Trip Detection ------------------------------
+    def similar_trip_modal_is_present(self, timeout=5):
+        return self.is_present(SELECTORS["similar_trip_modal"], timeout=timeout)

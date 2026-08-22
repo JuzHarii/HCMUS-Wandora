@@ -2,7 +2,15 @@
 conftest.py
 ------------
 Shared pytest fixtures. Handles opening/closing a browser and saving a
-screenshot whenever a PA4 UC01/UC02 test fails.
+screenshot whenever a PA4 test fails.
+
+driver / authenticated_driver are the primary/"current user" session,
+used by every single-user test (UC01, UC02, UC04 basic flow, etc).
+ 
+second_driver / second_authenticated_driver are an independent second
+browser session + account, used by tests that need two collaborators at
+once (UC03 Viewer/Editor checks, UC05 invite acceptance, UC06 role
+changes, UC08 luggage sync, UC15 voting/comments).
 """
 
 import os
@@ -12,8 +20,10 @@ import pytest
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.edge.options import Options as EdgeOptions
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 
-from config import BROWSER, HEADLESS
+from config import BROWSER, HEADLESS, DEFAULT_TIMEOUT, SELECTORS
 from pages.auth_page import AuthPage
 from pages.trip_creation_page import TripCreationPage
 
@@ -25,6 +35,7 @@ def _build_driver():
         options = EdgeOptions()
         if HEADLESS:
             options.add_argument("--headless=new")
+        options.add_argument("--window-size=1366,900")
         return webdriver.Edge(options=options)
 
     # default: chrome
@@ -33,6 +44,13 @@ def _build_driver():
         options.add_argument("--headless=new")
     options.add_argument("--window-size=1366,900")
     return webdriver.Chrome(options=options)
+
+
+def _sign_up_new_user(driver, label, next_path = None):
+    email = f"pa4-e2e-{uuid4().hex[:12]}@example.com"
+    AuthPage(driver).open_signup(next_path).sign_up(label, email, "TravelPass123!")
+    driver.pa4_email = email
+    return driver
 
 
 @pytest.fixture
@@ -47,10 +65,46 @@ def driver():
 @pytest.fixture
 def authenticated_driver(driver):
     """Register a fresh account through the UI and land on the protected UC01 page."""
-    email = f"pa4-e2e-{uuid4().hex[:12]}@example.com"
-    AuthPage(driver).open_signup("%2Ftrips%2Fnew").sign_up("PA4 Test User", email, "TravelPass123!")
+    _sign_up_new_user(driver, "Owner User", "%2Ftrips%2Fnew")
     TripCreationPage(driver).wait_visible("[data-testid='trip-invitation-continue']")
     return driver
+
+
+@pytest.fixture
+def second_driver():
+    """A fully independent browser session used alongside driver for multi-user tests."""
+    drv = _build_driver()
+    drv.implicitly_wait(0)
+    yield drv
+    drv.quit()
+
+
+@pytest.fixture
+def second_authenticated_driver(second_driver):
+    """Multi-user tests invite this account's email into a trip (as Editor or Viewer, via pages.members_page.MembersPage.invite) and then have it open the returned invite link directly."""
+    _sign_up_new_user(second_driver, "Second User")
+    WebDriverWait(second_driver, DEFAULT_TIMEOUT).until(
+        EC.visibility_of_element_located(("css selector", SELECTORS["trip_dashboard"]))
+    )
+    return second_driver
+
+
+@pytest.fixture
+def third_driver():
+    """A third independent browser session, for the handful of tests that need three simultaneous collaborators (e.g. UC15 tie-vote resolution)."""
+    drv = _build_driver()
+    drv.implicitly_wait(0)
+    yield drv
+    drv.quit()
+
+
+@pytest.fixture
+def third_authenticated_driver(third_driver):
+    _sign_up_new_user(third_driver, "Third User")
+    WebDriverWait(third_driver, DEFAULT_TIMEOUT).until(
+        EC.visibility_of_element_located(("css selector", SELECTORS["trip_dashboard"]))
+    )
+    return third_driver
 
 
 @pytest.fixture(autouse=True)
@@ -61,8 +115,11 @@ def _screenshot_on_failure(request, driver):
     if request.node.rep_call.failed if hasattr(request.node, "rep_call") else False:
         os.makedirs(SCREENSHOT_DIR, exist_ok=True)
         timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        path = os.path.join(SCREENSHOT_DIR, f"{request.node.name}_driver_{timestamp}.png")
-        driver.save_screenshot(path)
+        for fixture_name in ("driver", "second_driver", "third_driver"):
+            if fixture_name in request.node.funcargs:
+                driver = request.node.funcargs[fixture_name]
+                path = os.path.join(SCREENSHOT_DIR, f"{request.node.name}_{fixture_name}_{timestamp}.png")
+                driver.save_screenshot(path)
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)

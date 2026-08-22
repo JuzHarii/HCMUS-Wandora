@@ -11,6 +11,7 @@ delays.
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import ElementClickInterceptedException
 
 from config import DEFAULT_TIMEOUT, BASE_URL
 
@@ -53,7 +54,12 @@ class BasePage:
 
     # -- actions ---------------------------------------------------------
     def click(self, css_selector):
-        self.wait_clickable(css_selector).click()
+        el = self.wait_clickable(css_selector)
+        self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'instant'});", el)
+        try:
+            el.click()
+        except ElementClickInterceptedException:
+            self.driver.execute_script("arguments[0].click();", el)
         return self
 
     def type_text(self, css_selector, text, clear_first=True):
@@ -68,3 +74,7 @@ class BasePage:
 
     def current_url(self):
         return self.driver.current_url
+
+    def clear_session(self):
+        self.driver.delete_all_cookies()
+        return self

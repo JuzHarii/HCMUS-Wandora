@@ -61,3 +61,12 @@ def test_uc02_04_regenerate_keeps_the_workspace_available(authenticated_driver):
     WebDriverWait(driver, AI_TIMEOUT).until(lambda current: not current.find_element("css selector", SELECTORS["regenerate_button"]).is_enabled())
     WebDriverWait(driver, AI_TIMEOUT).until(lambda current: current.find_element("css selector", SELECTORS["regenerate_button"]).is_enabled())
     assert driver.find_elements("css selector", SELECTORS["activity_row"])
+
+def test_uc02_05_workspace_is_locked_during_generation(authenticated_driver):
+    driver = authenticated_driver
+    _create_trip_and_wait_for_itinerary(driver)
+    driver.find_element("css selector", SELECTORS["regenerate_button"]).click()
+    WebDriverWait(driver, AI_TIMEOUT).until(lambda current: not current.find_element("css selector", SELECTORS["regenerate_button"]).is_enabled())
+    assert not driver.find_element("css selector", SELECTORS["regenerate_button"]).is_enabled()
+    WebDriverWait(driver, AI_TIMEOUT).until(lambda current: current.find_element("css selector", SELECTORS["regenerate_button"]).is_enabled())
+    assert driver.find_elements("css selector", SELECTORS["activity_row"])
