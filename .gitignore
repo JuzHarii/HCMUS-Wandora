@@ -14,3 +14,6 @@ htmlcov/
 src/backend/*.db
 backups/
 tests/e2e/screenshots/
+
+# Local Docs / Scratch notes
+docs/backend_usecases_and_functions.md
