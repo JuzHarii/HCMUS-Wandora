@@ -1,1 +1,1 @@
-"""Router phiên bản 1 của API."""
+"""Phiên bản API v1 của ứng dụng."""

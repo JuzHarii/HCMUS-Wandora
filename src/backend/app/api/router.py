@@ -1,3 +1,5 @@
+"""Router tổng hợp cho toàn bộ API phiên bản 1."""
+
 from fastapi import APIRouter
 
 from .v1.activities import router as activities_router

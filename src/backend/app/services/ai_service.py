@@ -1,27 +1,31 @@
+"""Gemini integration and deterministic itinerary fallback."""
+
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 import json
 import logging
-from datetime import date, timedelta
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 
-from ..core.config import get_settings
+from app.core.config import get_settings
+from app.schemas.itinerary import GeneratedItineraryPayload
 
 logger = logging.getLogger(__name__)
 
+GenerationSource = Literal["gemini", "fallback"]
+
+
+@dataclass(frozen=True)
+class GenerationResult:
+    draft: GeneratedItineraryPayload
+    source: GenerationSource
+
 
 def _fallback_activities(day_index: int, destination_name: str) -> list[dict[str, Any]]:
-    """
-    Tạo danh sách các hoạt động du lịch mặc định chuẩn cho từng ngày.
-
-    Công dụng:
-    - Khi dịch vụ AI không khả dụng hoặc bị ngắt kết nối, hàm này cung cấp bộ hoạt động
-      du lịch mẫu đã được định dạng chuẩn (nhận phòng, ăn uống, tham quan, mua sắm).
-    - Giúp hệ thống luôn trả về dữ liệu khả dụng (fail-safe) mà không sụp đổ API.
-    =)))
-    """
+    """Tạo danh sách các hoạt động du lịch mặc định chuẩn cho từng ngày."""
     if day_index == 1:
         return [
             {
@@ -99,14 +103,7 @@ def _fallback_draft(
     end_date: date | None,
     preferences: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    """
-    Sinh bản nháp lịch trình hoàn chỉnh theo thuật toán tĩnh dự phòng.
-
-    Công dụng:
-    - Tính toán số lượng ngày dựa trên start_date và end_date.
-    - Duyệt qua từng ngày và ghép các hoạt động từ `_fallback_activities`.
-    - Đảm bảo trả về cấu trúc danh sách ngày trùng khớp hoàn toàn với định dạng của AI.
-    """
+    """Sinh bản nháp lịch trình hoàn chỉnh theo thuật toán tĩnh dự phòng."""
     _ = preferences
     dest_name = destination or "Điểm đến"
 
@@ -124,6 +121,7 @@ def _fallback_draft(
             {
                 "day_index": day_idx,
                 "date_value": current_date.isoformat() if current_date else None,
+                "travel_date": current_date.isoformat() if current_date else None,
                 "title": f"Ngày {day_idx}: Khám phá {dest_name}",
                 "activities": _fallback_activities(day_idx, dest_name),
             }
@@ -135,7 +133,6 @@ def _fallback_draft(
 
 
 def _safe_parse_json(text: str) -> Any:
-    """Trích xuất và parse JSON an toàn, tự động loại bỏ các ký tự markdown fence (```json ... ```)."""
     cleaned = text.strip()
     if cleaned.startswith("```"):
         lines = cleaned.splitlines()
@@ -155,14 +152,6 @@ def _build_prompt(
     adjustment_instruction: str | None = None,
     existing_itinerary: list[dict[str, Any]] | None = None,
 ) -> str:
-    """
-    Xây dựng câu lệnh (prompt) tối ưu gửi cho mô hình ngôn ngữ lớn (LLM).
-
-    Công dụng:
-    - Đóng gói thông tin chuyến đi (điểm đến, thời gian, sở thích người dùng).
-    - Đính kèm lịch trình hiện tại nếu đang ở chế độ điều chỉnh (adjustment).
-    - Ép mô hình trả về đúng cấu trúc JSON mong muốn (Structural JSON Enforcement).
-    """
     dest = destination or "Điểm đến phổ biến"
     num_days = 3
     if start_date and end_date:
@@ -211,12 +200,8 @@ async def _generate_with_gemini(
     adjustment_instruction: str | None = None,
     existing_itinerary: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]] | None:
-    """
-    Thực hiện cuộc gọi bất đồng bộ (Async Non-blocking Call) tới Gemini REST API.
-    """
     settings = get_settings()
     if not settings.gemini_api_key:
-        logger.info("Chưa cấu hình GEMINI_API_KEY, tự động chuyển sang chế độ dự phòng (fallback).")
         return None
 
     prompt = _build_prompt(destination, start_date, end_date, preferences, adjustment_instruction, existing_itinerary)
@@ -239,7 +224,7 @@ async def _generate_with_gemini(
                         text_res = parts[0].get("text", "")
                         parsed = _safe_parse_json(text_res)
                         if isinstance(parsed, dict) and "days" in parsed:
-                            return parsed["days"]  # type: ignore[no-any-return]
+                            return parsed["days"]
     except Exception as e:
         logger.warning(f"Lỗi kết nối Gemini API: {e}. Kích hoạt chế độ dự phòng.")
 
@@ -254,9 +239,6 @@ async def generate_itinerary_draft(
     adjustment_instruction: str | None = None,
     existing_itinerary: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
-    """
-    Hàm điều phối chính sinh bản nháp lịch trình bằng AI hoặc dự phòng.
-    """
     ai_result = await _generate_with_gemini(
         destination, start_date, end_date, preferences, adjustment_instruction, existing_itinerary
     )
@@ -266,7 +248,6 @@ async def generate_itinerary_draft(
 
 
 def _fallback_packing_suggestions(destination: str | None) -> list[dict[str, Any]]:
-    """Tạo danh sách đồ dùng gợi ý tĩnh khi không gọi được AI."""
     dest = destination or "Địa điểm du lịch"
     return [
         {"name": "Giấy tờ tùy thân & Căn cước công dân", "quantity": 1, "is_shared": False, "note": "Mang bản chính"},
@@ -282,9 +263,6 @@ async def generate_packing_suggestions(
     destination: str | None = None,
     preferences: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    """
-    Sinh danh sách gợi ý hành lý thông minh bằng Gemini AI (PA3 UC 2.7).
-    """
     settings = get_settings()
     if not settings.gemini_api_key:
         return _fallback_packing_suggestions(destination)
@@ -325,9 +303,103 @@ BẮT BUỘC trả về định dạng JSON array thuần túy theo đúng cấu
                         text_res = parts[0].get("text", "")
                         parsed = _safe_parse_json(text_res)
                         if isinstance(parsed, list) and len(parsed) > 0:
-                            return parsed  # type: ignore[no-any-return]
+                            return parsed
     except Exception as e:
         logger.warning(f"Lỗi gọi Gemini API sinh hành lý: {e}. Chuyển sang fallback.")
 
     return _fallback_packing_suggestions(destination)
 
+
+class AIService:
+    """Create structured itinerary drafts through Gemini, with a safe fallback."""
+
+    def __init__(self) -> None:
+        self.settings = get_settings()
+
+    def generate_itinerary_draft(self, workspace: dict[str, object], instruction: str | None = None) -> GenerationResult:
+        if self.settings.gemini_api_key:
+            draft = self._generate_with_gemini(workspace, instruction)
+            if draft is not None:
+                return GenerationResult(draft=draft, source="gemini")
+        return GenerationResult(draft=self._fallback_draft(workspace, instruction), source="fallback")
+
+    def _generate_with_gemini(self, workspace: dict[str, object], instruction: str | None) -> GeneratedItineraryPayload | None:
+        try:
+            from google import genai
+            from google.genai import types
+
+            client = genai.Client(api_key=self.settings.gemini_api_key)
+            response = client.models.generate_content(
+                model=self.settings.gemini_model,
+                contents=self._build_prompt(workspace, instruction),
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=GeneratedItineraryPayload,
+                    http_options=types.HttpOptions(timeout=self.settings.gemini_timeout_seconds * 1000),
+                ),
+            )
+            draft = GeneratedItineraryPayload.model_validate(json.loads(getattr(response, "text", None) or ""))
+            return draft
+        except Exception as exc:
+            logger.warning("Gemini itinerary generation failed; using fallback. error=%s", type(exc).__name__)
+            return None
+
+    def _fallback_draft(self, workspace: dict[str, object], instruction: str | None) -> GeneratedItineraryPayload:
+        destination = str(workspace.get("destination") or "Destination")
+        dates = self._trip_dates(workspace)
+        days = []
+        for day_index, travel_date in enumerate(dates, start=1):
+            days.append(
+                {
+                    "day_index": day_index,
+                    "title": f"Explore {destination} — Day {day_index}",
+                    "summary": "A flexible, saved starting point for your group." if not instruction else f"Adjusted for: {instruction}",
+                    "travel_date": travel_date,
+                    "activities": self._fallback_activities(destination, day_index, instruction),
+                }
+            )
+        return GeneratedItineraryPayload.model_validate({"days": days})
+
+    def _fallback_activities(self, destination: str, day_index: int, instruction: str | None) -> list[dict[str, object]]:
+        notes = f"Adjusted for: {instruction}" if instruction else None
+        template = [
+            ("08:00", "09:00", "Breakfast and departure", "Food"),
+            ("09:30", "12:00", "Visit a local highlight", "Sightseeing"),
+            ("14:00", "16:30", "Flexible local experience", "Leisure"),
+            ("18:00", "20:00", "Dinner and evening break", "Food"),
+        ]
+        return [
+            {
+                "start_time": start_time,
+                "end_time": end_time,
+                "title": f"{title} — Day {day_index}",
+                "location_name": f"{destination} city center",
+                "activity_type": activity_type,
+                "notes": notes,
+                "external_url": f"https://www.google.com/maps/search/{destination}",
+            }
+            for start_time, end_time, title, activity_type in template
+        ]
+
+    def _trip_dates(self, workspace: dict[str, object]) -> list[date | None]:
+        start_date = self._to_date(workspace.get("start_date"))
+        end_date = self._to_date(workspace.get("end_date"))
+        if start_date is None or end_date is None:
+            return [start_date]
+        return [start_date + timedelta(days=offset) for offset in range((end_date - start_date).days + 1)]
+
+    def _to_date(self, value: object) -> date | None:
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+        if isinstance(value, str):
+            return date.fromisoformat(value)
+        return None
+
+    def _build_prompt(self, workspace: dict[str, object], instruction: str | None) -> str:
+        payload = {
+            "workspace": workspace,
+            "instruction": instruction,
+        }
+        return json.dumps(payload, ensure_ascii=False, indent=2, default=str)

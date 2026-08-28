@@ -1,90 +1,94 @@
 from __future__ import annotations
 
+from datetime import date, datetime, time, timedelta
 import json
-from datetime import date, timedelta
 from typing import Any
 
 from fastapi import HTTPException
-from sqlalchemy import delete
-from sqlalchemy.orm import Session
+from sqlalchemy import delete, func, select
+from sqlalchemy.orm import Session, selectinload
 
-from ..core.time_utils import parse_date_safe, parse_time_safe
-from ..models.itinerary import ItineraryActivity, ItineraryDay
-from ..models.workspace import Workspace
-from ..schemas.itinerary import ItineraryActivityCreate, ItineraryActivityUpdate
-from . import ai_service
-from .workspace_service import get_workspace
+from app.models.itinerary import ItineraryActivity, ItineraryDay, ItineraryVersion
+from app.models.workspace import Workspace
+from app.schemas.itinerary import (
+    ActivityCreate,
+    ActivityResponse,
+    ActivityUpdate,
+    AdjustItineraryRequest,
+    GenerateItineraryRequest,
+    GeneratedItineraryPayload,
+    ItineraryActivityCreate,
+    ItineraryActivityUpdate,
+    ItineraryDayResponse,
+    ItineraryPreviewRequest,
+    ItineraryPreviewResponse,
+    ItineraryResponse,
+    ItineraryVersionResponse,
+    SaveItineraryDraftRequest,
+    format_time_safe,
+    parse_time_safe,
+)
+from app.services import ai_service
+from app.services.ai_service import AIService
 
 
-def get_itinerary(db: Session, workspace_id: int) -> dict[str, Any]:
-    """
-    Truy vấn toàn bộ cây lịch trình (gồm danh sách các ngày và các hoạt động) của workspace.
+def parse_date_safe(val: Any) -> date | None:
+    if isinstance(val, date):
+        return val
+    if isinstance(val, str):
+        try:
+            return date.fromisoformat(val)
+        except Exception:
+            return None
+    return None
 
-    Công dụng:
-    - Kiểm tra sự tồn tại của workspace.
-    - Truy vấn danh sách `ItineraryDay` sắp xếp tăng dần theo `day_index`.
-    - Trả về đối tượng dict tương thích với `ItineraryResponse` schema.
-    """
-    _ = get_workspace(db, workspace_id)  # Xác thực workspace có tồn tại hay không
+
+def get_itinerary(db: Session, workspace_id: Any) -> dict[str, Any]:
+    ws_id_val = int(workspace_id) if str(workspace_id).isdigit() else workspace_id
+    ws = db.query(Workspace).filter(Workspace.id == ws_id_val).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace không tồn tại")
 
     days = (
         db.query(ItineraryDay)
-        .filter(ItineraryDay.workspace_id == workspace_id)
+        .filter(ItineraryDay.workspace_id == ws_id_val)
         .order_by(ItineraryDay.day_index.asc())
         .all()
     )
 
-    return {"workspace_id": workspace_id, "days": days}
+    return {"workspace_id": ws.id, "days": days}
 
 
 def _persist_generated_itinerary(
     db: Session,
-    workspace_id: int,
+    workspace_id: Any,
     days_data: list[dict[str, Any]],
     keep_manual: bool = True,
 ) -> dict[str, Any]:
-    """
-    Lưu trữ danh sách lịch trình (Days & Activities) vào CSDL trong 1 Transaction nguyên tử (Atomic Transaction).
+    ws = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace không tồn tại")
 
-    Công dụng & Cơ chế hoạt động:
-    - Đảm bảo tính toàn vẹn dữ liệu (Sprint 2 requirement):
-      + Nếu `keep_manual=True`: Chỉ xóa các hoạt động do AI sinh ra (`is_manual == False`),
-        bảo tồn toàn bộ hoạt động thủ công mà người dùng đã tự thêm trước đó (`is_manual == True`).
-      + Nếu `keep_manual=False`: Xóa toàn bộ lịch trình cũ để tái thiết lập từ đầu.
-    - Duyệt qua từng ngày trong `days_data`, tìm hoặc tạo đối tượng `ItineraryDay`.
-    - Thêm danh sách `ItineraryActivity` tương ứng với mỗi ngày.
-    - Toàn bộ thao tác thực hiện trong một khối try/except:
-      + Thành công: Gọi `db.commit()` để ghi nhận toàn bộ vào CSDL.
-      + Thất bại: Tự động gọi `db.rollback()` để hủy bỏ mọi thay đổi dở dang, ngăn ngừa dữ liệu rác.
-    """
-    ws = get_workspace(db, workspace_id)
     ws.status = "Planned"
-
 
     try:
         if keep_manual:
-            # Lấy tất cả các ngày hiện có trong workspace
             existing_days = db.query(ItineraryDay).filter(ItineraryDay.workspace_id == workspace_id).all()
             for day in existing_days:
-                # Chỉ xóa các hoạt động do AI tạo ra (is_manual == False)
                 db.query(ItineraryActivity).filter(
                     ItineraryActivity.day_id == day.id, ItineraryActivity.is_manual == False
                 ).delete(synchronize_session=False)
         else:
-            # Xóa sạch toàn bộ ngày và hoạt động
             db.query(ItineraryDay).filter(ItineraryDay.workspace_id == workspace_id).delete(synchronize_session=False)
 
-        # Thêm mới các ngày và hoạt động từ danh sách days_data
         for d_data in days_data:
             day_idx = d_data.get("day_index", 1)
             day_title = d_data.get("title", f"Ngày {day_idx}")
 
-            # Định dạng ngày date_value
-            date_val = parse_date_safe(d_data.get("date_value"))
+            date_val = parse_date_safe(d_data.get("date_value") or d_data.get("travel_date"))
             if not date_val and ws.start_date:
                 date_val = ws.start_date + timedelta(days=day_idx - 1)
 
-            # Tìm ngày đã tồn tại hoặc tạo mới
             day_obj = (
                 db.query(ItineraryDay)
                 .filter(ItineraryDay.workspace_id == workspace_id, ItineraryDay.day_index == day_idx)
@@ -95,16 +99,17 @@ def _persist_generated_itinerary(
                     workspace_id=workspace_id,
                     day_index=day_idx,
                     date_value=date_val,
+                    travel_date=date_val,
                     title=day_title,
                 )
                 db.add(day_obj)
-                db.flush()  # Sinh ID tự động cho day_obj
+                db.flush()
 
             activities_list = d_data.get("activities", [])
             for idx, act_data in enumerate(activities_list, start=1):
                 s_time = parse_time_safe(act_data.get("start_time"))
                 e_time = parse_time_safe(act_data.get("end_time"))
-                order_idx = act_data.get("order_index", idx)
+                order_idx = act_data.get("order_index", act_data.get("sort_order", idx))
 
                 act_obj = ItineraryActivity(
                     day_id=day_obj.id,
@@ -112,10 +117,12 @@ def _persist_generated_itinerary(
                     start_time=s_time,
                     end_time=e_time,
                     location_name=act_data.get("location_name"),
+                    activity_type=act_data.get("activity_type"),
                     notes=act_data.get("notes"),
                     external_url=act_data.get("external_url"),
-                    is_manual=False,  # Đánh dấu do AI sinh ra
+                    is_manual=False,
                     order_index=order_idx,
+                    sort_order=order_idx,
                 )
                 db.add(act_obj)
 
@@ -127,21 +134,11 @@ def _persist_generated_itinerary(
     return get_itinerary(db, workspace_id)
 
 
-async def generate_itinerary_draft(db: Session, workspace_id: int, force_regenerate: bool = False) -> dict[str, Any]:
-    """
-    Sinh bản nháp lịch trình mới hoặc trả về lịch trình hiện có.
+async def generate_itinerary_draft(db: Session, workspace_id: Any, force_regenerate: bool = False) -> dict[str, Any]:
+    ws = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace không tồn tại")
 
-    Công dụng & Cơ chế hoạt động:
-    - Nếu đã có lịch trình trong CSDL và `force_regenerate == False`: Trả về ngay lịch trình hiện có
-      mà không tốn tài nguyên gọi lại Gemini AI (Tối ưu hóa hiệu năng & giảm chi phí API).
-    - Nếu `force_regenerate == True` hoặc chưa có lịch trình:
-      + Đọc thông tin destination, start_date, end_date và preferences từ workspace.
-      + Gọi `ai_service.generate_itinerary_draft` để sinh danh sách ngày/hoạt động.
-      + Lưu vào CSDL thông qua `_persist_generated_itinerary`.
-    """
-    ws = get_workspace(db, workspace_id)
-
-    # Đã có lịch trình và không yêu cầu sinh lại bắt buộc
     existing_days = db.query(ItineraryDay).filter(ItineraryDay.workspace_id == workspace_id).all()
     if existing_days and not force_regenerate:
         return get_itinerary(db, workspace_id)
@@ -158,20 +155,12 @@ async def generate_itinerary_draft(db: Session, workspace_id: int, force_regener
     return _persist_generated_itinerary(db, workspace_id, days_data, keep_manual=True)
 
 
-async def adjust_itinerary(db: Session, workspace_id: int, instruction: str) -> dict[str, Any]:
-    """
-    Điều chỉnh lịch trình hiện tại dựa trên câu lệnh hướng dẫn của người dùng (ví dụ: "thêm hoạt động mua sắm chiều ngày 2").
+async def adjust_itinerary(db: Session, workspace_id: Any, instruction: str) -> dict[str, Any]:
+    ws = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace không tồn tại")
 
-    Công dụng:
-    - Truy vấn lịch trình hiện có làm ngữ cảnh cho AI.
-    - Truyền hướng dẫn điều chỉnh `instruction` và `existing_itinerary` sang `ai_service`.
-    - Sinh lại lịch trình mới phù hợp với yêu cầu điều chỉnh.
-    - Cập nhật CSDL và giữ nguyên các hoạt động do người dùng tự thêm (`keep_manual=True`).
-    """
-    ws = get_workspace(db, workspace_id)
     preferences = json.loads(ws.preferences_json) if ws.preferences_json else {}
-
-    # Lấy lịch trình hiện tại làm ngữ cảnh cho AI
     current_itin = get_itinerary(db, workspace_id)
     existing_days_data = []
     for day in current_itin.get("days", []):
@@ -181,8 +170,8 @@ async def adjust_itinerary(db: Session, workspace_id: int, instruction: str) -> 
             "activities": [
                 {
                     "title": act.title,
-                    "start_time": act.start_time,
-                    "end_time": act.end_time,
+                    "start_time": format_time_safe(act.start_time),
+                    "end_time": format_time_safe(act.end_time),
                     "location_name": act.location_name,
                     "notes": act.notes,
                     "is_manual": act.is_manual,
@@ -203,16 +192,7 @@ async def adjust_itinerary(db: Session, workspace_id: int, instruction: str) -> 
     return _persist_generated_itinerary(db, workspace_id, days_data, keep_manual=True)
 
 
-
 def add_activity(db: Session, payload: ItineraryActivityCreate) -> ItineraryActivity:
-    """
-    Thêm một hoạt động mới do người dùng tự nhập thủ công.
-
-    Công dụng & Cơ chế hardening:
-    - Bắt buộc gắn cờ `is_manual = True` (Sprint 2 Requirement) để phân biệt với các hoạt động do AI tự động sinh.
-    - Tự động liên kết hoặc khởi tạo `ItineraryDay` tương ứng nếu truyền `(workspace_id, day_index)` thay vì `day_id`.
-    - Chuyển đổi thời gian an toàn (`parse_time_safe`) tránh các lỗi định dạng chuỗi.
-    """
     day_id = payload.day_id
 
     if not day_id:
@@ -241,16 +221,20 @@ def add_activity(db: Session, payload: ItineraryActivityCreate) -> ItineraryActi
     if not day_obj:
         raise HTTPException(status_code=404, detail="Không tìm thấy ngày trong lịch trình (Itinerary Day not found)")
 
+    order_val = payload.order_index or payload.sort_order
+
     activity = ItineraryActivity(
         day_id=day_id,
         title=payload.title,
         start_time=parse_time_safe(payload.start_time),
         end_time=parse_time_safe(payload.end_time),
         location_name=payload.location_name,
+        activity_type=payload.activity_type,
         notes=payload.notes,
         external_url=payload.external_url,
-        is_manual=True,  # Yêu cầu Sprint 2: Cưỡng chế is_manual = True
-        order_index=payload.order_index,
+        is_manual=True,
+        order_index=order_val,
+        sort_order=order_val,
     )
     db.add(activity)
     db.commit()
@@ -258,14 +242,7 @@ def add_activity(db: Session, payload: ItineraryActivityCreate) -> ItineraryActi
     return activity
 
 
-def update_activity(db: Session, activity_id: int, payload: ItineraryActivityUpdate) -> ItineraryActivity:
-    """
-    Cập nhật thông tin chi tiết của một hoạt động đã tồn tại.
-
-    Công dụng:
-    - Tìm hoạt động theo `activity_id`, ném lỗi 404 nếu không tìm thấy.
-    - Cập nhật các trường được truyền tới (title, start_time, end_time, location_name, notes, external_url, order_index).
-    """
+def update_activity(db: Session, activity_id: Any, payload: ItineraryActivityUpdate) -> ItineraryActivity:
     act = db.query(ItineraryActivity).filter(ItineraryActivity.id == activity_id).first()
     if not act:
         raise HTTPException(status_code=404, detail="Không tìm thấy hoạt động (Activity not found)")
@@ -284,7 +261,328 @@ def update_activity(db: Session, activity_id: int, payload: ItineraryActivityUpd
         act.external_url = payload.external_url
     if payload.order_index is not None:
         act.order_index = payload.order_index
+        act.sort_order = payload.order_index
+    elif payload.sort_order is not None:
+        act.order_index = payload.sort_order
+        act.sort_order = payload.sort_order
 
     db.commit()
     db.refresh(act)
     return act
+
+
+class ItineraryService:
+    """Tập hợp nghiệp vụ liên quan đến lịch trình chuyến đi."""
+
+    def __init__(self, db: Session) -> None:
+        self.db = db
+        self.ai_service = AIService()
+
+    def _get_workspace(self, workspace_id: Any) -> Workspace:
+        workspace = self.db.query(Workspace).filter(Workspace.id == workspace_id).first()
+        if workspace is None:
+            raise ValueError("Workspace không tồn tại.")
+        return workspace
+
+    def generate_itinerary_draft(self, workspace_id: Any, request: GenerateItineraryRequest | None = None) -> ItineraryResponse:
+        workspace = self._get_workspace(workspace_id)
+        has_existing_days = self.db.scalar(
+            select(func.count(ItineraryDay.id)).where(ItineraryDay.workspace_id == workspace_id)
+        ) > 0
+        if has_existing_days and not (request and request.force_regenerate):
+            return self.get_itinerary(workspace_id)
+
+        if has_existing_days:
+            self._snapshot_current_itinerary(workspace)
+        result = self.ai_service.generate_itinerary_draft(self._workspace_context(workspace))
+        self._persist_generated_itinerary(workspace_id, result.draft, replace_existing=True)
+        self._record_generation(workspace, result.source)
+        return self.get_itinerary(workspace_id)
+
+    def preview_itinerary(self, request: ItineraryPreviewRequest) -> ItineraryPreviewResponse:
+        result = self.ai_service.generate_itinerary_draft(request.model_dump())
+        return ItineraryPreviewResponse(source=result.source, draft=result.draft)
+
+    def save_itinerary_draft(self, workspace_id: Any, request: SaveItineraryDraftRequest) -> ItineraryResponse:
+        workspace = self._get_workspace(workspace_id)
+        has_existing_days = self.db.scalar(
+            select(func.count(ItineraryDay.id)).where(ItineraryDay.workspace_id == workspace_id)
+        ) > 0
+        if has_existing_days:
+            raise ValueError("This trip already has an itinerary.")
+        self._persist_generated_itinerary(workspace_id, request.draft, replace_existing=False)
+        self._record_generation(workspace, request.source)
+        return self.get_itinerary(workspace_id)
+
+    def initialize_blank_itinerary(self, workspace_id: Any) -> ItineraryResponse:
+        workspace = self._get_workspace(workspace_id)
+        self._clear_itinerary(workspace_id)
+        for day_index, travel_date in enumerate(self._travel_dates(workspace.start_date, workspace.end_date), start=1):
+            self.db.add(
+                ItineraryDay(
+                    workspace_id=workspace_id,
+                    day_index=day_index,
+                    date_value=travel_date,
+                    travel_date=travel_date,
+                    title=f"Day {day_index}",
+                    summary="Add activities to shape this day.",
+                )
+            )
+        self.db.commit()
+        self._record_generation(workspace, "blank")
+        return self.get_itinerary(workspace_id)
+
+    def get_itinerary(self, workspace_id: Any) -> ItineraryResponse:
+        ws_id_val = int(workspace_id) if str(workspace_id).isdigit() else workspace_id
+        workspace = self._get_workspace(ws_id_val)
+        days = self.db.scalars(
+            select(ItineraryDay)
+            .options(selectinload(ItineraryDay.activities))
+            .where(ItineraryDay.workspace_id == workspace.id)
+            .order_by(ItineraryDay.day_index)
+        ).all()
+        return ItineraryResponse(
+            workspace_id=workspace.id,
+            generation_source=workspace.itinerary_source,
+            generated_at=workspace.itinerary_generated_at,
+            days=[self._to_day_response(day) for day in days],
+        )
+
+    def list_versions(self, workspace_id: Any) -> list[ItineraryVersionResponse]:
+        self._get_workspace(workspace_id)
+        versions = self.db.scalars(
+            select(ItineraryVersion)
+            .where(ItineraryVersion.workspace_id == workspace_id)
+            .order_by(ItineraryVersion.created_at.desc())
+            .limit(10)
+        ).all()
+        return [ItineraryVersionResponse.model_validate(version) for version in versions]
+
+    def restore_version(self, workspace_id: Any, version_id: Any) -> ItineraryResponse:
+        workspace = self._get_workspace(workspace_id)
+        version = self.db.get(ItineraryVersion, version_id)
+        if version is None or version.workspace_id != workspace_id:
+            raise ValueError("Itinerary version does not exist.")
+        snapshot = ItineraryResponse.model_validate(version.snapshot)
+        self._clear_itinerary(workspace_id)
+        for day_payload in snapshot.days:
+            day = ItineraryDay(
+                workspace_id=workspace_id,
+                day_index=day_payload.day_index,
+                date_value=day_payload.travel_date,
+                travel_date=day_payload.travel_date,
+                title=day_payload.title,
+                summary=day_payload.summary,
+            )
+            self.db.add(day)
+            self.db.flush()
+            for activity_payload in day_payload.activities:
+                self.db.add(
+                    ItineraryActivity(
+                        day_id=day.id,
+                        start_time=parse_time_safe(activity_payload.start_time),
+                        end_time=parse_time_safe(activity_payload.end_time),
+                        title=activity_payload.title,
+                        location_name=activity_payload.location_name,
+                        activity_type=activity_payload.activity_type,
+                        notes=activity_payload.notes,
+                        external_url=activity_payload.external_url,
+                        is_manual=activity_payload.is_manual,
+                        order_index=activity_payload.order_index or activity_payload.sort_order,
+                        sort_order=activity_payload.sort_order or activity_payload.order_index,
+                    )
+                )
+        self.db.commit()
+        self._record_generation(workspace, "restored")
+        return self.get_itinerary(workspace_id)
+
+    def add_activity(self, payload: ActivityCreate) -> ActivityResponse:
+        day = self.db.get(ItineraryDay, payload.day_id)
+        if day is None:
+            raise ValueError("Ngày lịch trình không tồn tại.")
+        activity = ItineraryActivity(
+            day_id=day.id,
+            title=payload.title,
+            start_time=parse_time_safe(payload.start_time),
+            end_time=parse_time_safe(payload.end_time),
+            location_name=payload.location_name,
+            activity_type=payload.activity_type,
+            notes=payload.notes,
+            external_url=payload.external_url,
+            is_manual=True,
+            order_index=payload.order_index or payload.sort_order,
+            sort_order=payload.sort_order or payload.order_index,
+        )
+        self.db.add(activity)
+        self.db.commit()
+        self.db.refresh(activity)
+        return self._to_activity_response(activity)
+
+    def get_activity(self, activity_id: Any) -> ItineraryActivity:
+        activity = self.db.get(ItineraryActivity, activity_id)
+        if activity is None:
+            raise ValueError("Hoạt động không tồn tại.")
+        return activity
+
+    def update_activity(self, activity_id: Any, payload: ActivityUpdate) -> ActivityResponse:
+        activity = self.get_activity(activity_id)
+        for field, value in payload.model_dump(exclude_unset=True).items():
+            if field in ("start_time", "end_time"):
+                value = parse_time_safe(value)
+            setattr(activity, field, value)
+        self.db.commit()
+        self.db.refresh(activity)
+        return self._to_activity_response(activity)
+
+    def adjust_itinerary(self, workspace_id: Any, request: AdjustItineraryRequest) -> ItineraryResponse:
+        workspace = self._get_workspace(workspace_id)
+        result = self.ai_service.generate_itinerary_draft(self._workspace_context(workspace), request.instruction)
+        self._persist_generated_itinerary(workspace_id, result.draft, replace_existing=False)
+        self._record_generation(workspace, result.source)
+        return self.get_itinerary(workspace_id)
+
+    def _persist_generated_itinerary(
+        self,
+        workspace_id: Any,
+        draft: GeneratedItineraryPayload,
+        replace_existing: bool,
+    ) -> None:
+        if replace_existing:
+            self._remove_generated_activities(workspace_id, len(draft.days))
+
+        for day_payload in draft.days:
+            day = self._get_or_create_day(workspace_id, day_payload.day_index)
+            day.title = day_payload.title
+            day.summary = day_payload.summary
+            day.date_value = day_payload.travel_date
+            day.travel_date = day_payload.travel_date
+            self.db.add(day)
+            self.db.flush()
+
+            if not replace_existing:
+                self.db.execute(
+                    delete(ItineraryActivity).where(
+                        ItineraryActivity.day_id == day.id,
+                        ItineraryActivity.is_manual.is_(False),
+                    )
+                )
+
+            for sort_order, activity_payload in enumerate(day_payload.activities, start=1):
+                activity = ItineraryActivity(
+                    day_id=day.id,
+                    start_time=parse_time_safe(activity_payload.start_time),
+                    end_time=parse_time_safe(activity_payload.end_time),
+                    title=activity_payload.title,
+                    location_name=activity_payload.location_name,
+                    activity_type=activity_payload.activity_type,
+                    notes=activity_payload.notes,
+                    external_url=activity_payload.external_url,
+                    is_manual=False,
+                    order_index=sort_order,
+                    sort_order=sort_order,
+                )
+                self.db.add(activity)
+        self.db.commit()
+
+    def _record_generation(self, workspace: Workspace, source: str) -> None:
+        workspace.status = "Planned"
+        workspace.itinerary_source = source
+        workspace.itinerary_generated_at = datetime.utcnow()
+        self.db.add(workspace)
+        self.db.commit()
+
+    def _snapshot_current_itinerary(self, workspace: Workspace) -> None:
+        current = self.get_itinerary(workspace.id)
+        if not current.days:
+            return
+        self.db.add(
+            ItineraryVersion(
+                workspace_id=workspace.id,
+                generation_source=workspace.itinerary_source,
+                snapshot=current.model_dump(mode="json"),
+            )
+        )
+        self.db.commit()
+
+    def _get_or_create_day(self, workspace_id: Any, day_index: int) -> ItineraryDay:
+        day = self.db.scalar(
+            select(ItineraryDay).where(ItineraryDay.workspace_id == workspace_id, ItineraryDay.day_index == day_index)
+        )
+        if day is not None:
+            return day
+        return ItineraryDay(workspace_id=workspace_id, day_index=day_index, title=f"Ngày {day_index}")
+
+    def _clear_itinerary(self, workspace_id: Any) -> None:
+        existing_days = self.db.scalars(select(ItineraryDay).where(ItineraryDay.workspace_id == workspace_id)).all()
+        for day in existing_days:
+            self.db.execute(delete(ItineraryActivity).where(ItineraryActivity.day_id == day.id))
+        self.db.execute(delete(ItineraryDay).where(ItineraryDay.workspace_id == workspace_id))
+        self.db.commit()
+
+    def _remove_generated_activities(self, workspace_id: Any, expected_day_count: int) -> None:
+        days = self.db.scalars(select(ItineraryDay).where(ItineraryDay.workspace_id == workspace_id)).all()
+        for day in days:
+            self.db.execute(
+                delete(ItineraryActivity).where(
+                    ItineraryActivity.day_id == day.id,
+                    ItineraryActivity.is_manual.is_(False),
+                )
+            )
+            has_manual_activity = self.db.scalar(
+                select(func.count(ItineraryActivity.id)).where(
+                    ItineraryActivity.day_id == day.id,
+                    ItineraryActivity.is_manual.is_(True),
+                )
+            ) > 0
+            if day.day_index > expected_day_count and not has_manual_activity:
+                self.db.delete(day)
+        self.db.commit()
+
+    def _travel_dates(self, start_date: date | None, end_date: date | None) -> list[date | None]:
+        if start_date is None or end_date is None or end_date < start_date:
+            return [None]
+        duration = (end_date - start_date).days + 1
+        return [start_date + timedelta(days=offset) for offset in range(duration)]
+
+    def _workspace_context(self, workspace: Workspace) -> dict[str, object]:
+        return {
+            "id": workspace.id,
+            "title": workspace.title,
+            "destination": workspace.destination,
+            "start_date": workspace.start_date,
+            "end_date": workspace.end_date,
+            "budget": workspace.budget,
+            "travel_style": workspace.travel_style,
+            "group_size": workspace.group_size,
+            "notes": workspace.notes,
+        }
+
+    def _to_day_response(self, day: ItineraryDay) -> ItineraryDayResponse:
+        return ItineraryDayResponse(
+            id=day.id,
+            workspace_id=day.workspace_id,
+            day_index=day.day_index,
+            date_value=day.date_value or day.travel_date,
+            travel_date=day.travel_date or day.date_value,
+            title=day.title,
+            summary=day.summary,
+            activities=[self._to_activity_response(activity) for activity in day.activities],
+        )
+
+    def _to_activity_response(self, activity: ItineraryActivity) -> ActivityResponse:
+        return ActivityResponse(
+            id=activity.id,
+            day_id=activity.day_id,
+            start_time=activity.start_time,
+            end_time=activity.end_time,
+            title=activity.title,
+            location_name=activity.location_name,
+            activity_type=activity.activity_type,
+            notes=activity.notes,
+            external_url=activity.external_url,
+            is_manual=activity.is_manual,
+            order_index=activity.order_index or activity.sort_order,
+            sort_order=activity.sort_order or activity.order_index,
+            created_at=activity.created_at,
+            updated_at=activity.created_at,
+        )

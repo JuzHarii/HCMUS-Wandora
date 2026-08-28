@@ -1,51 +1,61 @@
+"""Authentication endpoints for account registration, login, and session lookup."""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from ...api.deps import get_db
-from ...core.security import create_access_token, get_password_hash, verify_password
-from ...models.user import User
-from ...schemas.auth import Token, UserLogin, UserRegister, UserResponse
+from app.api.dependencies import get_current_user
+from app.db.session import get_db
+from app.models.user import User
+from app.schemas.auth import (
+    AuthSessionResponse,
+    LoginRequest,
+    SignUpRequest,
+    Token,
+    UserLogin,
+    UserRegister,
+    UserResponse,
+)
+from app.services.auth_service import AuthService
 
 router = APIRouter()
 
 
+@router.post("/signup", response_model=AuthSessionResponse, status_code=status.HTTP_201_CREATED)
+def sign_up(payload: SignUpRequest, db: Session = Depends(get_db)) -> AuthSessionResponse:
+    try:
+        return AuthService(db).sign_up(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def register(user_in: UserRegister, db: Session = Depends(get_db)) -> User:
-    """Đăng ký tài khoản người dùng mới."""
-    existing_user = db.query(User).filter(User.email == user_in.email).first()
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email address is already registered",
+def register(user_in: UserRegister, db: Session = Depends(get_db)) -> UserResponse:
+    try:
+        signup_payload = SignUpRequest(
+            email=user_in.email,
+            password=user_in.password,
+            full_name=user_in.full_name or "Traveler",
         )
-
-    hashed_pw = get_password_hash(user_in.password)
-    new_user = User(
-        email=user_in.email,
-        full_name=user_in.full_name,
-        hashed_password=hashed_pw,
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    return new_user
+        session = AuthService(db).sign_up(signup_payload)
+        return session.user
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
-@router.post("/login", response_model=Token)
-def login(credentials: UserLogin, db: Session = Depends(get_db)) -> dict[str, str]:
-    """Đăng nhập bằng Email & Password, sinh mã JWT Access Token (HS256)."""
-    user = db.query(User).filter(User.email == credentials.email).first()
-    if not user or not user.hashed_password:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-        )
+@router.post("/login")
+def login(credentials: LoginRequest | UserLogin, db: Session = Depends(get_db)) -> dict[str, Any]:
+    try:
+        req = LoginRequest(email=credentials.email, password=credentials.password)
+        session = AuthService(db).login(req)
+        return {
+            "access_token": session.access_token,
+            "token_type": "bearer",
+            "user": session.user,
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
 
-    if not verify_password(credentials.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-        )
 
-    access_token = create_access_token(subject=user.id)
-    return {"access_token": access_token, "token_type": "bearer"}
+@router.get("/me", response_model=UserResponse)
+def get_me(current_user: User = Depends(get_current_user)) -> UserResponse:
+    return current_user

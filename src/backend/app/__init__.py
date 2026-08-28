@@ -1,1 +1,1 @@
-"""Gói backend chính của Wandora."""
+"""Gói ứng dụng chính cho dự án HCMUS-Wandora backend."""

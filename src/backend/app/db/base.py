@@ -1,7 +1,9 @@
+"""Base model cho toàn bộ entity của CSDL."""
+
 from sqlalchemy.orm import DeclarativeBase
 
 
 class Base(DeclarativeBase):
-    """Base declarative cho toàn bộ model SQLAlchemy."""
+    """Lớp cơ sở cho ORM SQLAlchemy."""
 
     pass

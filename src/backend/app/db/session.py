@@ -1,19 +1,37 @@
+"""Khởi tạo engine, session và tự động tạo bảng."""
+
 from collections.abc import Generator
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import NullPool
 
-from ..core.config import get_settings
+from app.core.config import get_settings
 
 settings = get_settings()
-engine_kwargs: dict[str, object] = {"future": True, "pool_pre_ping": True}
+
+engine_options: dict[str, object] = {
+    "future": True,
+    "echo": settings.debug,
+    "pool_pre_ping": True,
+}
+
 if settings.database_url.startswith("sqlite"):
-    engine_kwargs["connect_args"] = {"check_same_thread": False}
+    engine_options["connect_args"] = {"check_same_thread": False}
+elif settings.db_pool_mode == "transaction":
+    engine_options.update(
+        poolclass=NullPool,
+        connect_args={"prepare_threshold": None},
+    )
+else:
+    engine_options.update(
+        pool_size=settings.db_pool_size,
+        max_overflow=settings.db_max_overflow,
+    )
 
-engine = create_engine(settings.database_url, **engine_kwargs)
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
-
+engine = create_engine(settings.database_url, **engine_options)
+SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False, class_=Session)
 
 if settings.database_url.startswith("sqlite"):
 
@@ -25,9 +43,8 @@ if settings.database_url.startswith("sqlite"):
         cursor.close()
 
 
-
 def get_db() -> Generator[Session, None, None]:
-    """Cung cấp một session DB cho mỗi request."""
+    """Dependency cung cấp session CSDL cho API."""
     db = SessionLocal()
     try:
         yield db

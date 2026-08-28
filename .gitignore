@@ -1,13 +1,16 @@
-# Local Documentation & Internal Notes (Nội bộ máy)
-docs/backend_usecases_and_functions.md
-
 # Virtual Environment & Python Caches
 .venv/
 venv/
 __pycache__/
 *.pyc
+*.pyo
 .pytest_cache/
+.coverage
+htmlcov/
 .env
 
-# SQLite Database & Local Files
+# Local Database & Test Evidence
+*.db
 src/backend/*.db
+backups/
+tests/e2e/screenshots/
