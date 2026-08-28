@@ -9,7 +9,7 @@ from ..models.user import User, WorkspaceMember
 from .workspace_service import get_workspace
 
 
-def invite_member(db: Session, workspace_id: int, email: str, role: str = "member") -> dict[str, Any]:
+def invite_member(db: Session, workspace_id: Any, email: str, role: str = "member") -> dict[str, Any]:
     """
     Mời thành viên mới vào workspace thông qua Email.
 
@@ -33,13 +33,13 @@ def invite_member(db: Session, workspace_id: int, email: str, role: str = "membe
     # Kiểm tra tư cách thành viên đã tồn tại
     existing_member = (
         db.query(WorkspaceMember)
-        .filter(WorkspaceMember.workspace_id == workspace_id, WorkspaceMember.user_id == user.id)
+        .filter(WorkspaceMember.workspace_id == str(workspace_id), WorkspaceMember.user_id == user.id)
         .first()
     )
     if existing_member:
         raise HTTPException(status_code=400, detail="Người dùng đã là thành viên của workspace này")
 
-    member = WorkspaceMember(workspace_id=workspace_id, user_id=user.id, role=role)
+    member = WorkspaceMember(workspace_id=str(workspace_id), user_id=user.id, role=role)
     db.add(member)
     db.commit()
     db.refresh(member)
@@ -55,7 +55,7 @@ def invite_member(db: Session, workspace_id: int, email: str, role: str = "membe
     }
 
 
-def list_members(db: Session, workspace_id: int) -> list[dict[str, Any]]:
+def list_members(db: Session, workspace_id: Any) -> list[dict[str, Any]]:
     """
     Lấy danh sách tất cả các thành viên đang tham gia vào workspace kèm thông tin người dùng.
     """
@@ -63,7 +63,7 @@ def list_members(db: Session, workspace_id: int) -> list[dict[str, Any]]:
 
     members = (
         db.query(WorkspaceMember)
-        .filter(WorkspaceMember.workspace_id == workspace_id)
+        .filter(WorkspaceMember.workspace_id == str(workspace_id))
         .order_by(WorkspaceMember.joined_at.asc())
         .all()
     )
@@ -85,13 +85,13 @@ def list_members(db: Session, workspace_id: int) -> list[dict[str, Any]]:
     return result
 
 
-def update_member_role(db: Session, workspace_id: int, user_id: int, new_role: str) -> dict[str, Any]:
+def update_member_role(db: Session, workspace_id: Any, user_id: Any, new_role: str) -> dict[str, Any]:
     """
     Cập nhật vai trò phân quyền của thành viên trong workspace (ví dụ chuyển từ viewer sang editor).
     """
     member = (
         db.query(WorkspaceMember)
-        .filter(WorkspaceMember.workspace_id == workspace_id, WorkspaceMember.user_id == user_id)
+        .filter(WorkspaceMember.workspace_id == str(workspace_id), WorkspaceMember.user_id == str(user_id))
         .first()
     )
     if not member:
@@ -100,7 +100,7 @@ def update_member_role(db: Session, workspace_id: int, user_id: int, new_role: s
     member.role = new_role
     db.commit()
 
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(User.id == str(user_id)).first()
     return {
         "id": member.id,
         "workspace_id": member.workspace_id,
@@ -112,13 +112,13 @@ def update_member_role(db: Session, workspace_id: int, user_id: int, new_role: s
     }
 
 
-def remove_member(db: Session, workspace_id: int, user_id: int) -> dict[str, str]:
+def remove_member(db: Session, workspace_id: Any, user_id: Any) -> dict[str, str]:
     """
     Xóa thành viên khỏi workspace.
     """
     member = (
         db.query(WorkspaceMember)
-        .filter(WorkspaceMember.workspace_id == workspace_id, WorkspaceMember.user_id == user_id)
+        .filter(WorkspaceMember.workspace_id == str(workspace_id), WorkspaceMember.user_id == str(user_id))
         .first()
     )
     if not member:

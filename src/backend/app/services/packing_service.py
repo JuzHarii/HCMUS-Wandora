@@ -26,7 +26,7 @@ def _fallback_packing_suggestions(destination: str | None) -> list[dict[str, Any
     ]
 
 
-async def generate_packing_suggestions(db: Session, workspace_id: int) -> list[dict[str, Any]]:
+async def generate_packing_suggestions(db: Session, workspace_id: Any) -> list[dict[str, Any]]:
     """
     Sinh danh sách gợi ý hành lý tự động dựa trên địa điểm du lịch và sở thích bằng Gemini AI (PA3 2.7).
 
@@ -46,12 +46,12 @@ async def generate_packing_suggestions(db: Session, workspace_id: int) -> list[d
         item_name = item.get("name", "Vật dụng cần mang")
         existing = (
             db.query(PackingItem)
-            .filter(PackingItem.workspace_id == workspace_id, PackingItem.name == item_name)
+            .filter(PackingItem.workspace_id == str(workspace_id), PackingItem.name == item_name)
             .first()
         )
         if not existing:
             p_obj = PackingItem(
-                workspace_id=workspace_id,
+                workspace_id=str(workspace_id),
                 name=item_name,
                 quantity=item.get("quantity", 1),
                 is_shared=bool(item.get("is_shared", False)),
@@ -66,18 +66,17 @@ async def generate_packing_suggestions(db: Session, workspace_id: int) -> list[d
 
     return (
         db.query(PackingItem)
-        .filter(PackingItem.workspace_id == workspace_id)
+        .filter(PackingItem.workspace_id == str(workspace_id))
         .all()
     )
 
 
-
-def add_packing_item(db: Session, workspace_id: int, payload: PackingItemCreate) -> dict[str, Any]:
+def add_packing_item(db: Session, workspace_id: Any, payload: PackingItemCreate) -> dict[str, Any]:
     """Thêm đồ dùng thủ công vào danh sách hành lý."""
     _ = get_workspace(db, workspace_id)
 
     item = PackingItem(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         name=payload.name,
         quantity=payload.quantity,
         is_shared=payload.is_shared,
@@ -89,13 +88,13 @@ def add_packing_item(db: Session, workspace_id: int, payload: PackingItemCreate)
     return get_packing_item_detail(db, item.id)
 
 
-def list_packing_items(db: Session, workspace_id: int) -> list[dict[str, Any]]:
+def list_packing_items(db: Session, workspace_id: Any) -> list[dict[str, Any]]:
     """Lấy danh sách vật dụng hành lý kèm thông tin người phân công và trạng thái hoàn thành."""
     _ = get_workspace(db, workspace_id)
 
     items = (
         db.query(PackingItem)
-        .filter(PackingItem.workspace_id == workspace_id)
+        .filter(PackingItem.workspace_id == str(workspace_id))
         .order_by(PackingItem.created_at.asc())
         .all()
     )
@@ -106,9 +105,9 @@ def list_packing_items(db: Session, workspace_id: int) -> list[dict[str, Any]]:
     return result
 
 
-def get_packing_item_detail(db: Session, item_id: int) -> dict[str, Any]:
+def get_packing_item_detail(db: Session, item_id: Any) -> dict[str, Any]:
     """Chi tiết 1 vật dụng hành lý kèm danh sách người phân công."""
-    item = db.query(PackingItem).filter(PackingItem.id == item_id).first()
+    item = db.query(PackingItem).filter(PackingItem.id == str(item_id)).first()
     if not item:
         raise HTTPException(status_code=404, detail="Không tìm thấy vật dụng hành lý")
 
@@ -139,9 +138,9 @@ def get_packing_item_detail(db: Session, item_id: int) -> dict[str, Any]:
     }
 
 
-def update_packing_item(db: Session, item_id: int, payload: PackingItemUpdate) -> dict[str, Any]:
+def update_packing_item(db: Session, item_id: Any, payload: PackingItemUpdate) -> dict[str, Any]:
     """Cập nhật thông tin vật dụng hành lý."""
-    item = db.query(PackingItem).filter(PackingItem.id == item_id).first()
+    item = db.query(PackingItem).filter(PackingItem.id == str(item_id)).first()
     if not item:
         raise HTTPException(status_code=404, detail="Không tìm thấy vật dụng hành lý")
 
@@ -158,26 +157,26 @@ def update_packing_item(db: Session, item_id: int, payload: PackingItemUpdate) -
     return get_packing_item_detail(db, item_id)
 
 
-def assign_or_toggle_item(db: Session, item_id: int, user_id: int, is_checked: bool = False) -> dict[str, Any]:
+def assign_or_toggle_item(db: Session, item_id: Any, user_id: Any, is_checked: bool = False) -> dict[str, Any]:
     """Phân công vật dụng hành lý cho thành viên chuẩn bị hoặc đánh dấu đã hoàn thành (PA3 2.8)."""
-    item = db.query(PackingItem).filter(PackingItem.id == item_id).first()
+    item = db.query(PackingItem).filter(PackingItem.id == str(item_id)).first()
     if not item:
         raise HTTPException(status_code=404, detail="Không tìm thấy vật dụng hành lý")
 
     # Đảm bảo user tồn tại để thỏa mãn ràng buộc khóa ngoại SQLite
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(User.id == str(user_id)).first()
     if not user:
-        user = User(id=user_id, email=f"user{user_id}@wandora.app", full_name=f"User {user_id}")
+        user = User(id=str(user_id), email=f"user{user_id}@wandora.app", full_name=f"User {user_id}")
         db.add(user)
         db.flush()
 
     entry = (
         db.query(PackingListEntry)
-        .filter(PackingListEntry.packing_item_id == item_id, PackingListEntry.user_id == user_id)
+        .filter(PackingListEntry.packing_item_id == item.id, PackingListEntry.user_id == str(user_id))
         .first()
     )
     if not entry:
-        entry = PackingListEntry(packing_item_id=item_id, user_id=user_id, is_checked=is_checked)
+        entry = PackingListEntry(packing_item_id=item.id, user_id=str(user_id), is_checked=is_checked)
         db.add(entry)
     else:
         entry.is_checked = is_checked
@@ -186,9 +185,9 @@ def assign_or_toggle_item(db: Session, item_id: int, user_id: int, is_checked: b
     return get_packing_item_detail(db, item_id)
 
 
-def delete_packing_item(db: Session, item_id: int) -> dict[str, str]:
+def delete_packing_item(db: Session, item_id: Any) -> dict[str, str]:
     """Xóa vật dụng khỏi danh sách hành lý."""
-    item = db.query(PackingItem).filter(PackingItem.id == item_id).first()
+    item = db.query(PackingItem).filter(PackingItem.id == str(item_id)).first()
     if not item:
         raise HTTPException(status_code=404, detail="Không tìm thấy vật dụng hành lý")
 

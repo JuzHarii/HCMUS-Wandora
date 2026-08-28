@@ -1,4 +1,5 @@
 from datetime import date, datetime, time
+from uuid import uuid4
 
 from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, String, Text, Time, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -12,8 +13,8 @@ class ItineraryDay(Base):
     __tablename__ = "itinerary_days"
     __table_args__ = (UniqueConstraint("workspace_id", "day_index", name="uq_itinerary_days_workspace_day_index"),)
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
     day_index: Mapped[int] = mapped_column(Integer, nullable=False)
     date_value: Mapped[date | None] = mapped_column("date", Date, nullable=True)
     travel_date: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -30,8 +31,8 @@ class ItineraryActivity(Base):
 
     __tablename__ = "itinerary_activities"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    day_id: Mapped[int] = mapped_column(ForeignKey("itinerary_days.id", ondelete="CASCADE"), nullable=False)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    day_id: Mapped[str] = mapped_column(ForeignKey("itinerary_days.id", ondelete="CASCADE"), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     start_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     end_time: Mapped[time | None] = mapped_column(Time, nullable=True)
@@ -52,8 +53,8 @@ class ItineraryVersion(Base):
 
     __tablename__ = "itinerary_versions"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
     generation_source: Mapped[str | None] = mapped_column(String(32), nullable=True)
     snapshot: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

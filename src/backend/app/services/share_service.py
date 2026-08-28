@@ -12,7 +12,7 @@ from .itinerary_service import get_itinerary
 from .workspace_service import get_workspace
 
 
-def create_share_link(db: Session, workspace_id: int) -> dict[str, Any]:
+def create_share_link(db: Session, workspace_id: Any) -> dict[str, Any]:
     """
     Sinh token và đường dẫn chia sẻ liên kết cho chuyến đi (PA3 2.11).
 
@@ -25,7 +25,7 @@ def create_share_link(db: Session, workspace_id: int) -> dict[str, Any]:
     _ = get_workspace(db, workspace_id)
 
     token_str = uuid.uuid4().hex[:16]
-    invite_token = InviteToken(workspace_id=workspace_id, token=token_str)
+    invite_token = InviteToken(workspace_id=str(workspace_id), token=token_str)
     db.add(invite_token)
     db.commit()
     db.refresh(invite_token)
@@ -49,7 +49,7 @@ def get_workspace_by_share_token(db: Session, token: str) -> dict[str, Any]:
     return get_itinerary(db, invite_token.workspace_id)
 
 
-def export_trip_plan(db: Session, workspace_id: int, export_format: str = "markdown") -> dict[str, Any]:
+def export_trip_plan(db: Session, workspace_id: Any, export_format: str = "markdown") -> dict[str, Any]:
     """
     Xuất kế hoạch chuyến đi ra dạng chuỗi định dạng Markdown hoặc JSON (PA3 2.11).
 
@@ -59,6 +59,14 @@ def export_trip_plan(db: Session, workspace_id: int, export_format: str = "markd
     - Nếu `export_format == "markdown"`: Dựng một văn bản Markdown hoàn chỉnh với tiêu đề, danh sách ngày và chi tiết thời gian/địa điểm.
     """
     ws = get_workspace(db, workspace_id)
+
+    # UC 2.14 Draft Guard: chỉ cho phép xuất kế hoạch khi chuyến đi ở trạng thái "Planned"
+    if getattr(ws, "status", None) not in ("Planned", "planned"):
+        raise HTTPException(
+            status_code=403,
+            detail="Draft status: Chỉ có thể xuất kế hoạch khi chuyến đi ở trạng thái 'Planned'. Vui lòng xác nhận lịch trình trước.",
+        )
+
     itin = get_itinerary(db, workspace_id)
 
     fmt_clean = export_format.lower().strip()

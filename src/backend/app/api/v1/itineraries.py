@@ -3,7 +3,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
+from app.api.dependencies import get_current_user
 from app.db.session import get_db
+from app.models.user import User
 from app.schemas.itinerary import (
     ItineraryActivityCreate,
     ItineraryActivityResponse,
@@ -17,7 +19,11 @@ router = APIRouter()
 
 
 @router.get("/{workspace_id}", response_model=ItineraryResponse)
-def get_workspace_itinerary(workspace_id: Any, db: Session = Depends(get_db)) -> ItineraryResponse:
+def get_workspace_itinerary(
+    workspace_id: Any,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ItineraryResponse:
     service = ItineraryService(db)
     try:
         return service.get_itinerary(workspace_id)
@@ -27,14 +33,21 @@ def get_workspace_itinerary(workspace_id: Any, db: Session = Depends(get_db)) ->
 
 
 @router.post("/activities", response_model=ItineraryActivityResponse, status_code=status.HTTP_201_CREATED)
-def add_activity(payload: ItineraryActivityCreate, db: Session = Depends(get_db)) -> ItineraryActivityResponse:
+def add_activity(
+    payload: ItineraryActivityCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ItineraryActivityResponse:
     act = itinerary_service.add_activity(db, payload)
     return ItineraryActivityResponse.model_validate(act)
 
 
 @router.put("/activities/{activity_id}", response_model=ItineraryActivityResponse)
 def update_activity(
-    activity_id: Any, payload: ItineraryActivityUpdate, db: Session = Depends(get_db)
+    activity_id: Any,
+    payload: ItineraryActivityUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> ItineraryActivityResponse:
     act = itinerary_service.update_activity(db, activity_id, payload)
     return ItineraryActivityResponse.model_validate(act)

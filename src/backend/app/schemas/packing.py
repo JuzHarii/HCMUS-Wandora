@@ -18,14 +18,14 @@ class PackingItemUpdate(BaseModel):
 
 
 class PackingAssignmentRequest(BaseModel):
-    user_id: int
+    user_id: str | int
     is_checked: bool = False
 
 
 class PackingListEntryResponse(BaseModel):
-    id: int
-    packing_item_id: int
-    user_id: int
+    id: str | int
+    packing_item_id: str | int
+    user_id: str | int
     user_email: str | None = None
     user_full_name: str | None = None
     is_checked: bool
@@ -34,8 +34,8 @@ class PackingListEntryResponse(BaseModel):
 
 
 class PackingItemResponse(BaseModel):
-    id: int
-    workspace_id: int
+    id: str | int
+    workspace_id: str | int
     name: str
     quantity: int
     is_shared: bool

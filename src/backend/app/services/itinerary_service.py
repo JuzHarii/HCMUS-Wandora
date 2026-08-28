@@ -44,14 +44,13 @@ def parse_date_safe(val: Any) -> date | None:
 
 
 def get_itinerary(db: Session, workspace_id: Any) -> dict[str, Any]:
-    ws_id_val = int(workspace_id) if str(workspace_id).isdigit() else workspace_id
-    ws = db.query(Workspace).filter(Workspace.id == ws_id_val).first()
+    ws = db.query(Workspace).filter(Workspace.id == str(workspace_id)).first()
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace không tồn tại")
 
     days = (
         db.query(ItineraryDay)
-        .filter(ItineraryDay.workspace_id == ws_id_val)
+        .filter(ItineraryDay.workspace_id == ws.id)
         .order_by(ItineraryDay.day_index.asc())
         .all()
     )

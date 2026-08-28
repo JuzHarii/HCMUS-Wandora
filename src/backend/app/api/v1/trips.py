@@ -88,7 +88,7 @@ def save_itinerary(
     }
 
     if ws_id:
-        ws = db.query(Workspace).filter(Workspace.id == ws_id).first()
+        ws = db.query(Workspace).filter(Workspace.id == str(ws_id)).first()
         if not ws:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
         ws.owner_id = current_user.id
@@ -140,12 +140,12 @@ def get_trip_history(
 
 @router.get("/{trip_id}/versions", response_model=list[VersionSummary])
 def get_trip_versions(
-    trip_id: int,
+    trip_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[dict[str, Any]]:
     """UC 2.17: Trả về danh sách các version từ history_snapshots của Workspace."""
-    ws = db.query(Workspace).filter(Workspace.id == trip_id).first()
+    ws = db.query(Workspace).filter(Workspace.id == str(trip_id)).first()
     if not ws:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
 
@@ -166,13 +166,13 @@ def get_trip_versions(
 
 @router.post("/{trip_id}/versions/{version_number}/restore", response_model=RestoreVersionResponse)
 def restore_trip_version(
-    trip_id: int,
+    trip_id: str,
     version_number: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     """UC 2.17: Khôi phục data lịch trình từ JSON snapshot và tái lập dữ liệu trong CSDL."""
-    ws = db.query(Workspace).filter(Workspace.id == trip_id).first()
+    ws = db.query(Workspace).filter(Workspace.id == str(trip_id)).first()
     if not ws:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
 

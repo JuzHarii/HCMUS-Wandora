@@ -7,9 +7,9 @@ class CommentCreate(BaseModel):
 
 
 class CommentResponse(BaseModel):
-    id: int
-    activity_id: int
-    user_id: int
+    id: str | int
+    activity_id: str | int
+    user_id: str | int
     user_name: str | None = None
     content: str
     created_at: datetime
@@ -22,9 +22,9 @@ class VoteCreate(BaseModel):
 
 
 class VoteResponse(BaseModel):
-    id: int
-    activity_id: int
-    user_id: int
+    id: str | int
+    activity_id: str | int
+    user_id: str | int
     vote_value: int
     created_at: datetime
 

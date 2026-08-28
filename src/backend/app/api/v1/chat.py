@@ -1,11 +1,11 @@
-from typing import Any
-
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
+from app.api.dependencies import get_current_user
 from app.db.session import get_db
-from app.models.chat import ChatMessage
+from app.models.user import User
 from app.schemas.chat import ChatHistoryResponse, ChatMessageCreate, ChatMessageResponse
+from app.models.chat import ChatMessage
 
 router = APIRouter()
 
@@ -16,10 +16,12 @@ router = APIRouter()
     status_code=status.HTTP_201_CREATED,
 )
 def send_chat_message(
-    workspace_id: Any, payload: ChatMessageCreate, db: Session = Depends(get_db)
+    workspace_id: str,
+    payload: ChatMessageCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> ChatMessageResponse:
-    ws_id_val = int(workspace_id) if str(workspace_id).isdigit() else workspace_id
-    message = ChatMessage(workspace_id=ws_id_val, role="user", sender_role="user", content=payload.content)
+    message = ChatMessage(workspace_id=str(workspace_id), role="user", sender_role="user", content=payload.content)
     db.add(message)
     db.commit()
     db.refresh(message)
@@ -27,10 +29,13 @@ def send_chat_message(
 
 
 @router.get("/workspaces/{workspace_id}/messages", response_model=ChatHistoryResponse)
-def get_chat_messages(workspace_id: Any, db: Session = Depends(get_db)) -> ChatHistoryResponse:
-    ws_id_val = int(workspace_id) if str(workspace_id).isdigit() else workspace_id
-    messages = db.query(ChatMessage).filter(ChatMessage.workspace_id == ws_id_val).all()
+def get_chat_messages(
+    workspace_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ChatHistoryResponse:
+    messages = db.query(ChatMessage).filter(ChatMessage.workspace_id == str(workspace_id)).all()
     return ChatHistoryResponse(
-        workspace_id=ws_id_val,
+        workspace_id=workspace_id,
         messages=[ChatMessageResponse.model_validate(m) for m in messages],
     )

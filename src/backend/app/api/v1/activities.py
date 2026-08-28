@@ -12,18 +12,18 @@ router = APIRouter()
 
 @router.post("/{activity_id}/comments", response_model=CommentResponse, status_code=status.HTTP_201_CREATED)
 def create_comment(
-    activity_id: int,
+    activity_id: str,
     comment_in: CommentCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> CommentResponse:
     """UC 2.15: Gửi bình luận cho 1 Hoạt động (Activity)."""
-    activity = db.query(ItineraryActivity).filter(ItineraryActivity.id == activity_id).first()
+    activity = db.query(ItineraryActivity).filter(ItineraryActivity.id == str(activity_id)).first()
     if not activity:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Activity with id {activity_id} not found")
 
     new_comment = ActivityComment(
-        activity_id=activity_id,
+        activity_id=str(activity_id),
         user_id=current_user.id,
         content=comment_in.content,
     )
@@ -43,16 +43,16 @@ def create_comment(
 
 @router.get("/{activity_id}/comments", response_model=list[CommentResponse])
 def get_comments(
-    activity_id: int,
+    activity_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[CommentResponse]:
     """UC 2.15: Lấy danh sách bình luận của 1 Hoạt động (Activity)."""
-    activity = db.query(ItineraryActivity).filter(ItineraryActivity.id == activity_id).first()
+    activity = db.query(ItineraryActivity).filter(ItineraryActivity.id == str(activity_id)).first()
     if not activity:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Activity with id {activity_id} not found")
 
-    comments = db.query(ActivityComment).filter(ActivityComment.activity_id == activity_id).order_by(ActivityComment.created_at.asc()).all()
+    comments = db.query(ActivityComment).filter(ActivityComment.activity_id == str(activity_id)).order_by(ActivityComment.created_at.asc()).all()
 
     result = []
     for comment in comments:
@@ -72,13 +72,13 @@ def get_comments(
 
 @router.post("/{activity_id}/vote", response_model=VoteResponse)
 def vote_activity(
-    activity_id: int,
+    activity_id: str,
     vote_in: VoteCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ActivityVote:
     """UC 2.15: Bình chọn Hoạt động (Upsert nếu user đã bình chọn trước đó)."""
-    activity = db.query(ItineraryActivity).filter(ItineraryActivity.id == activity_id).first()
+    activity = db.query(ItineraryActivity).filter(ItineraryActivity.id == str(activity_id)).first()
     if not activity:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Activity with id {activity_id} not found")
 
@@ -90,7 +90,7 @@ def vote_activity(
 
     existing_vote = (
         db.query(ActivityVote)
-        .filter(ActivityVote.activity_id == activity_id, ActivityVote.user_id == current_user.id)
+        .filter(ActivityVote.activity_id == str(activity_id), ActivityVote.user_id == current_user.id)
         .first()
     )
 
@@ -101,7 +101,7 @@ def vote_activity(
         return existing_vote
 
     new_vote = ActivityVote(
-        activity_id=activity_id,
+        activity_id=str(activity_id),
         user_id=current_user.id,
         vote_value=vote_in.vote_value,
     )

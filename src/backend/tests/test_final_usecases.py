@@ -3,6 +3,7 @@ from datetime import date
 from fastapi.testclient import TestClient
 
 from app.models.itinerary import ItineraryActivity, ItineraryDay
+from app.models.user import User
 from app.models.workspace import Workspace
 
 
@@ -132,7 +133,8 @@ def test_sprint4_guards_comments_and_voting(client: TestClient, db_session) -> N
     login_res = client.post("/api/v1/auth/login", json={"email": "voter@wandora.com", "password": "Pass123!"})
     token = login_res.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-    user_id = 1
+    voter = db_session.query(User).filter(User.email == "voter@wandora.com").first()
+    user_id = voter.id if voter else "test-user-id"
 
     # 2. UC 2.14: Test Draft Guard on REAL export API /api/v1/workspaces/{workspace_id}/export
     draft_ws = Workspace(

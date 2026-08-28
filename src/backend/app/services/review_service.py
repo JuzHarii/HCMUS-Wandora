@@ -10,7 +10,9 @@ from ..schemas.review import PlaceReviewCreate
 from .workspace_service import get_workspace
 
 
-def create_or_update_review(db: Session, workspace_id: int, payload: PlaceReviewCreate) -> dict[str, Any]:
+def create_or_update_review(
+    db: Session, workspace_id: Any, payload: PlaceReviewCreate, user_id: Any = None
+) -> dict[str, Any]:
     """
     Tạo mới hoặc cập nhật đánh giá / nhận xét địa điểm của người dùng (PA3 2.10).
 
@@ -21,18 +23,21 @@ def create_or_update_review(db: Session, workspace_id: int, payload: PlaceReview
     """
     _ = get_workspace(db, workspace_id)
 
+    # Dùng user_id từ auth nếu có, fallback về payload.user_id để tương thích ngược
+    resolved_user_id = str(user_id) if user_id is not None else (str(payload.user_id) if payload.user_id else None)
+
     # Đảm bảo user tồn tại
-    user = db.query(User).filter(User.id == payload.user_id).first()
-    if not user:
-        user = User(id=payload.user_id, email=f"user{payload.user_id}@wandora.app", full_name=f"User {payload.user_id}")
+    user = db.query(User).filter(User.id == resolved_user_id).first() if resolved_user_id else None
+    if not user and resolved_user_id:
+        user = User(id=resolved_user_id, email=f"user{resolved_user_id}@wandora.app", full_name=f"User {resolved_user_id}")
         db.add(user)
         db.flush()
 
     review = (
         db.query(PlaceReview)
         .filter(
-            PlaceReview.workspace_id == workspace_id,
-            PlaceReview.user_id == payload.user_id,
+            PlaceReview.workspace_id == str(workspace_id),
+            PlaceReview.user_id == resolved_user_id,
             PlaceReview.place_name == payload.place_name,
         )
         .first()
@@ -43,8 +48,8 @@ def create_or_update_review(db: Session, workspace_id: int, payload: PlaceReview
         review.comment = payload.comment
     else:
         review = PlaceReview(
-            workspace_id=workspace_id,
-            user_id=payload.user_id,
+            workspace_id=str(workspace_id),
+            user_id=resolved_user_id,
             place_name=payload.place_name,
             rating=payload.rating,
             comment=payload.comment,
@@ -68,14 +73,14 @@ def create_or_update_review(db: Session, workspace_id: int, payload: PlaceReview
 
 
 def list_workspace_reviews(
-    db: Session, workspace_id: int, place_name: str | None = None
+    db: Session, workspace_id: Any, place_name: str | None = None
 ) -> list[dict[str, Any]]:
     """
     Lấy danh sách đánh giá địa điểm trong workspace (có thể lọc theo tên địa điểm cụ thể).
     """
     _ = get_workspace(db, workspace_id)
 
-    query = db.query(PlaceReview).filter(PlaceReview.workspace_id == workspace_id)
+    query = db.query(PlaceReview).filter(PlaceReview.workspace_id == str(workspace_id))
     if place_name:
         query = query.filter(PlaceReview.place_name == place_name)
 

@@ -10,6 +10,8 @@ from sqlalchemy.pool import StaticPool
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
+from app.api.dependencies import get_current_user
+from app.models.user import User
 
 # Tạo CSDL SQLite trong bộ nhớ (in-memory) cho các bài kiểm thử
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
@@ -55,9 +57,20 @@ def db_session() -> Generator[Session, None, None]:
     connection.close()
 
 
+def _make_test_user(db_session: Session) -> User:
+    """Tạo và lưu một user test vào DB nếu chưa có."""
+    user = db_session.query(User).filter(User.email == "test@wandora.app").first()
+    if not user:
+        user = User(email="test@wandora.app", full_name="Test User", hashed_password="hashed", role="member")
+        db_session.add(user)
+        db_session.commit()
+        db_session.refresh(user)
+    return user
+
+
 @pytest.fixture
 def client(db_session: Session) -> Generator[TestClient, None, None]:
-    """Khởi tạo FastAPI TestClient kết hợp ghi đè dependency get_db."""
+    """Khởi tạo FastAPI TestClient kết hợp ghi đè dependency get_db và get_current_user."""
 
     def _override_get_db() -> Generator[Session, None, None]:
         try:
@@ -65,7 +78,14 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
         finally:
             pass
 
+    test_user = _make_test_user(db_session)
+
+    def _override_get_current_user() -> User:
+        return test_user
+
     app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[get_current_user] = _override_get_current_user
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
+

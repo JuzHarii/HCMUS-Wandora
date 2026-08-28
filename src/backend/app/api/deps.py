@@ -25,7 +25,7 @@ def get_current_user(
 
     token = credentials.credentials
     try:
-        user_id_str = decode_access_token(token)
+        user_id = decode_access_token(token)
     except HTTPException:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -33,12 +33,7 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    try:
-        user_id = int(user_id_str)
-    except (ValueError, TypeError):
-        user_id = user_id_str
-
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.get(User, user_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -11,8 +11,8 @@ class CheckDuplicateRequest(BaseModel):
 
 
 class TripResponse(BaseModel):
-    id: int
-    owner_id: int | None = None
+    id: str | int
+    owner_id: str | int | None = None
     title: str
     destination: str | None = None
     start_date: date | None = None
@@ -33,8 +33,8 @@ class CheckDuplicateResponse(BaseModel):
 
 
 class SaveItineraryRequest(BaseModel):
-    workspace_id: int | None = None
-    trip_id: int | None = None  # Alias cho workspace_id
+    workspace_id: str | int | None = None
+    trip_id: str | int | None = None  # Alias cho workspace_id
     title: str
     destination: str
     start_date: date
@@ -50,7 +50,7 @@ class VersionSummary(BaseModel):
 
 class RestoreVersionResponse(BaseModel):
     message: str
-    workspace_id: int
+    workspace_id: str | int
     restored_version: int
     current_status: str
     itinerary_data: dict[str, Any]

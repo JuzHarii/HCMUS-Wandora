@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 
 class MemberInviteRequest(BaseModel):
@@ -13,9 +13,9 @@ class MemberRoleUpdateRequest(BaseModel):
 
 
 class WorkspaceMemberResponse(BaseModel):
-    id: int
-    workspace_id: int
-    user_id: int
+    id: str | int
+    workspace_id: str | int
+    user_id: str | int
     user_email: str | None = None
     user_full_name: str | None = None
     role: str

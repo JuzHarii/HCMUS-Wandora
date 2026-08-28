@@ -23,8 +23,10 @@ def test_collaboration_flow(client: TestClient) -> None:
     list_res = client.get(f"/api/v1/workspaces/{ws_id}/members")
     assert list_res.status_code == 200
     members = list_res.json()
-    assert len(members) == 1
-    assert members[0]["user_email"] == "alice@example.com"
+    # Chủ sở hữu (test user) + thành viên được mời = 2
+    assert len(members) == 2
+    alice_member = next((m for m in members if m["user_email"] == "alice@example.com"), None)
+    assert alice_member is not None
 
     # 4. Cập nhật vai trò (phân quyền) sang viewer
     update_res = client.put(
@@ -38,6 +40,6 @@ def test_collaboration_flow(client: TestClient) -> None:
     del_res = client.delete(f"/api/v1/workspaces/{ws_id}/members/{user_id}")
     assert del_res.status_code == 200
 
-    # Verification: Danh sách phải trống
+    # Verification: Chỉ còn lại chủ sở hữu
     list_res2 = client.get(f"/api/v1/workspaces/{ws_id}/members")
-    assert len(list_res2.json()) == 0
+    assert len(list_res2.json()) == 1

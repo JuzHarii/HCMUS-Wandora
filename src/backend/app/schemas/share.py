@@ -10,7 +10,7 @@ class ShareLinkResponse(BaseModel):
 
 
 class TripExportResponse(BaseModel):
-    workspace_id: int
+    workspace_id: str | int
     title: str
     format: str = Field(description="json hoặc markdown")
     content: str = Field(description="Nội dung chuỗi JSON hoặc Markdown được định dạng")
