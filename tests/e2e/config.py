@@ -47,14 +47,21 @@ SELECTORS = {
     "trip_validation_alert": "[data-testid='trip-validation-alert']",
     "trip_status_badge": "[data-testid='trip-status-badge']",
     "ai_generation_indicator": "[data-testid='ai-generation-indicator']",
+
+    # --- UC02: AI Itinerary Generation ----------------------------------
     "generate_preview_button": "[data-testid='generate-preview-button']",
     "save_trip_button": "[data-testid='save-trip-button']",
     "open_trip_workspace": "[data-testid='open-trip-workspace']",
-
-    # --- UC02: AI Itinerary Generation ----------------------------------
     "itinerary_view": "[data-testid='itinerary-view']",
     "activity_row": "[data-testid='activity-row']",
     "regenerate_button": "[data-testid='regenerate-itinerary-button']",
+    "generation_lock_overlay": "[data-testid='generation-lock-overlay']",
+    "ai_fallback_dialog": "[data-testid='ai-fallback-dialog']",
+    "ai_fallback_retry_button": "[data-testid='ai-fallback-retry-button']",
+    "ai_fallback_blank_button": "[data-testid='ai-fallback-blank-itinerary-button']",
+    "blank_itinerary_grid": "[data-testid='blank-itinerary-grid']",
+    "ai_generation_error_alert": "[data-testid='ai-generation-error-alert']",
+    "preview_activity_row": "[data-testid='preview-activity-row']",
 
     # --- UC03: AI Itinerary Adjustment ------------------------------------
     "itinerary_adjustment_input": "[data-testid='itinerary-adjustment-input']",

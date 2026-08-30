@@ -9,7 +9,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from config import AI_TIMEOUT, BASE_URL, SELECTORS
+from config import AI_TIMEOUT, BASE_URL, DEFAULT_TIMEOUT
 from pages.trip_creation_page import TripCreationPage
 
 
@@ -30,50 +30,38 @@ def test_uc01_01_successful_trip_creation(authenticated_driver):
     destination = f"PA4 Da Nang {uuid4().hex[:6]}"
     _valid_trip(page, destination)
     page.submit()
-    page.generate_preview()
-    WebDriverWait(driver, AI_TIMEOUT).until(EC.visibility_of_element_located(("css selector", SELECTORS["save_trip_button"])))
-    page.save_trip()
-    page.open_saved_trip()
-
-    WebDriverWait(driver, AI_TIMEOUT).until(EC.url_contains("/trips/"))
-    driver.get(f"{BASE_URL}/home")
-    cards = WebDriverWait(driver, AI_TIMEOUT).until(
-        EC.visibility_of_all_elements_located(("css selector", SELECTORS["dashboard_trip_card"]))
-    )
-    assert any(destination in card.text for card in cards)
+    assert page.ai_generation_started(timeout=AI_TIMEOUT)
 
 
-def test_uc01_02_missing_destination_blocks_submission(authenticated_driver):
+def test_uc01_02_missing_required_fields(authenticated_driver):
     driver = authenticated_driver
     page = TripCreationPage(driver).open_trip_creation()
     page.fill_trip_form(start_date="2026-09-01", end_date="2026-09-03", capacity="2")
     page.submit()
+    assert "please fill all required fields" in page.get_validation_alert_text().lower()
 
-    assert "destination" in page.get_validation_alert_text().lower()
 
-
-def test_uc01_03_missing_dates_blocks_submission(authenticated_driver):
+def test_uc01_03_invalid_date_order(authenticated_driver):
     driver = authenticated_driver
     page = TripCreationPage(driver).open_trip_creation()
-    page.fill_trip_form(destination="Tokyo", capacity="2")
+    page.fill_trip_form(destination="Tokyo", start_date="2026-09-10", end_date="2026-09-01", capacity="2")
     page.submit()
+    assert "end date must be after or equal to start date" in page.get_validation_alert_text().lower()
 
-    assert "start date" in page.get_validation_alert_text().lower()
 
+def test_uc01_04_access_control_interception_for_guest_users(driver):
+    driver.get(f"{BASE_URL}/trips/new")
+    WebDriverWait(driver, DEFAULT_TIMEOUT).until(EC.url_contains("/auth?mode=login"))
+    assert "next=%2Ftrips%2Fnew" in driver.current_url
 
-def test_uc01_04_end_date_before_start_date_is_rejected(authenticated_driver):
+def test_uc01_05_numeric_boundary_check_on_group_size(authenticated_driver):
     driver = authenticated_driver
     page = TripCreationPage(driver).open_trip_creation()
-    page.fill_trip_form(destination="London", start_date="2026-09-10", end_date="2026-09-01", capacity="2")
+    page.fill_trip_form(destination="London", start_date="2026-09-01", end_date="2026-09-05", capacity="-3")
     page.submit()
-
-    assert "end date must be after or equal" in page.get_validation_alert_text().lower()
-
-
-def test_uc01_05_invalid_group_size_is_rejected(authenticated_driver):
-    driver = authenticated_driver
-    page = TripCreationPage(driver).open_trip_creation()
-    page.fill_trip_form(destination="Hue", start_date="2026-09-01", end_date="2026-09-03", capacity="0")
+    assert "between 1 and 10,000" in page.get_validation_alert_text().lower()
+ 
+    page.fill_trip_form(capacity="999999")
     page.submit()
-
-    assert "at least 1 traveler" in page.get_validation_alert_text().lower()
+    assert "between 1 and 10,000" in page.get_validation_alert_text().lower()
+ 

@@ -13,12 +13,6 @@ from config import BASE_URL, DEFAULT_TIMEOUT, SELECTORS
 from pages.auth_page import AuthPage
 
 
-def test_protected_trip_route_redirects_to_login(driver):
-    AuthPage(driver).open("/trips/new")
-    WebDriverWait(driver, DEFAULT_TIMEOUT).until(EC.url_contains("/auth?mode=login"))
-    assert "next=%2Ftrips%2Fnew" in driver.current_url
-
-
 def test_root_is_the_public_landing_page(driver):
     driver.get(BASE_URL)
     WebDriverWait(driver, DEFAULT_TIMEOUT).until(EC.visibility_of_element_located(("css selector", "#hero-title")))

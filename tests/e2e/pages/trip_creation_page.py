@@ -87,6 +87,28 @@ class TripCreationPage(BasePage):
             value,
         )
         return self
+    
+    # -- UC02: AI Itinerary Generation --------------------------------
+    def fallback_dialog_is_present(self, timeout=5):
+        return self.is_present(SELECTORS["ai_fallback_dialog"], timeout=timeout)
+
+    def retry_generation(self):
+        self.click(SELECTORS["ai_fallback_retry_button"])
+        return self
+
+    def start_blank_itinerary(self):
+        self.click(SELECTORS["ai_fallback_blank_button"])
+        return self
+
+    def blank_itinerary_grid_is_visible(self, timeout=5):
+        return self.is_present(SELECTORS["blank_itinerary_grid"], timeout=timeout)
+ 
+    def generation_error_is_present(self, timeout=5):
+        return self.is_present(SELECTORS["ai_generation_error_alert"], timeout=timeout)
+ 
+    def get_preview_activity_rows(self):
+        return self.driver.find_elements("css selector", SELECTORS["preview_activity_row"])
+    
     # -- UC13: Review and Save AI Itinerary (preview screen) ----------------
     def edit_preview_activity(self, activity_index, new_text):
         rows = self.driver.find_elements("css selector", SELECTORS["preview_activity_row"])
