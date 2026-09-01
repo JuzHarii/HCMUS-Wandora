@@ -238,7 +238,84 @@ function DayCard({ day, onActivityCreated, canEdit }: { day: ItineraryDay; onAct
     }
   }
 
-  return <article className="day-card"><header><div><span>Day {day.day_index}</span><h2>{day.title}</h2></div><time>{formatDay(day.travel_date)}</time></header>{day.summary && <p className="day-summary">{day.summary}</p>}{day.activities.length > 0 ? <ol className="activity-list">{day.activities.map((activity) => <li key={activity.id} data-testid="activity-row" className="activity-row"><time>{formatTime(activity.start_time)}{activity.end_time ? ` – ${formatTime(activity.end_time)}` : ''}</time><div className="activity-marker" /><div><h3>{activity.title}</h3>{activity.location_name && <p>{activity.location_name}</p>}{activity.notes && <p className="activity-note">{activity.notes}</p>}{activity.external_url && <a href={activity.external_url} target="_blank" rel="noreferrer">Open map <ArrowUpRight aria-hidden="true" /></a>}<ActivityComments activity={activity} /></div></li>)}</ol> : <p style={{ color: 'var(--color-text-dim)', fontSize: '0.9rem', marginBottom: '1rem' }}>No activities yet.</p>}{canEdit && <div className={`blank-day ${isAddingActivity ? 'is-editing' : ''}`}>{!isAddingActivity && <button className="recovery-link" type="button" onClick={() => setIsAddingActivity(true)}>+ Add activity</button>}{isAddingActivity && <form className="manual-activity-form" onSubmit={submit}><label>Activity<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. Visit local market" autoFocus /></label><label>Start time<input type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} /></label><label>End time<input type="time" value={endTime} onChange={(event) => setEndTime(event.target.value)} /></label><label className="activity-location-field">Location<input value={locationName} onChange={(event) => setLocationName(event.target.value)} placeholder="Optional location" /></label><label>Notes<textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Optional tips, reminders..." rows={2} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--color-border)', resize: 'vertical' }} /></label><label>External Link<input type="url" value={externalUrl} onChange={(event) => setExternalUrl(event.target.value)} placeholder="https://..." style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--color-border)' }} /></label>{error && <p className="form-error" role="alert">{error}</p>}<div><button className="dashboard-create-button" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Adding…' : 'Save'}</button><button className="recovery-link" type="button" onClick={() => setIsAddingActivity(false)} disabled={isSubmitting}>Cancel</button></div></form>}</div>}</article>
+  return <article className="day-card"><header><div><span>Day {day.day_index}</span><h2>{day.title}</h2></div><time>{formatDay(day.travel_date)}</time></header>{day.summary && <p className="day-summary">{day.summary}</p>}{day.activities.length > 0 ? <ol className="activity-list">{day.activities.map((activity) => <ActivityRow key={activity.id} activity={activity} canEdit={canEdit} onActivityUpdated={onActivityCreated} />)}</ol> : <p style={{ color: 'var(--color-text-dim)', fontSize: '0.9rem', marginBottom: '1rem' }}>No activities yet.</p>}{canEdit && <div className={`blank-day ${isAddingActivity ? 'is-editing' : ''}`}>{!isAddingActivity && <button className="recovery-link" type="button" onClick={() => setIsAddingActivity(true)}>+ Add activity</button>}{isAddingActivity && <form className="manual-activity-form" onSubmit={submit}><label>Activity<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. Visit local market" autoFocus /></label><label>Start time<input type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} /></label><label>End time<input type="time" value={endTime} onChange={(event) => setEndTime(event.target.value)} /></label><label className="activity-location-field">Location<input value={locationName} onChange={(event) => setLocationName(event.target.value)} placeholder="Optional location" /></label><label>Notes<textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Optional tips, reminders..." rows={2} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--color-border)', resize: 'vertical' }} /></label><label>External Link<input type="url" value={externalUrl} onChange={(event) => setExternalUrl(event.target.value)} placeholder="https://..." style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--color-border)' }} /></label>{error && <p className="form-error" role="alert">{error}</p>}<div><button className="dashboard-create-button" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Adding…' : 'Save'}</button><button className="recovery-link" type="button" onClick={() => setIsAddingActivity(false)} disabled={isSubmitting}>Cancel</button></div></form>}</div>}</article>
+}
+
+function ActivityRow({ activity, canEdit, onActivityUpdated }: { activity: Activity; canEdit: boolean; onActivityUpdated: () => Promise<void> }) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [title, setTitle] = useState(activity.title || '')
+  const [startTime, setStartTime] = useState(activity.start_time ? activity.start_time.substring(0, 5) : '')
+  const [endTime, setEndTime] = useState(activity.end_time ? activity.end_time.substring(0, 5) : '')
+  const [locationName, setLocationName] = useState(activity.location_name || '')
+  const [notes, setNotes] = useState(activity.notes || '')
+  const [externalUrl, setExternalUrl] = useState(activity.external_url || '')
+  
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState('')
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!title.trim()) return setError('Enter an activity name.')
+    setIsSubmitting(true)
+    setError('')
+    try {
+      await itinerariesApi.updateActivity(activity.id, {
+        title: title.trim(),
+        start_time: startTime || null,
+        end_time: endTime || null,
+        location_name: locationName.trim() || null,
+        notes: notes.trim() || null,
+        external_url: externalUrl.trim() || null,
+      })
+      await onActivityUpdated()
+      setIsEditing(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not update this activity.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  if (isEditing) {
+    return (
+      <li className="activity-row is-editing-row">
+        <form className="manual-activity-form" onSubmit={submit} style={{ width: '100%' }}>
+          <label>Activity<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. Visit local market" autoFocus /></label>
+          <label>Start time<input type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} /></label>
+          <label>End time<input type="time" value={endTime} onChange={(event) => setEndTime(event.target.value)} /></label>
+          <label className="activity-location-field">Location<input value={locationName} onChange={(event) => setLocationName(event.target.value)} placeholder="Optional location" /></label>
+          <label>Notes<textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Optional tips, reminders..." rows={2} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--color-border)', resize: 'vertical' }} /></label>
+          <label>External Link<input type="url" value={externalUrl} onChange={(event) => setExternalUrl(event.target.value)} placeholder="https://..." style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--color-border)' }} /></label>
+          {error && <p className="form-error" role="alert">{error}</p>}
+          <div style={{ marginTop: '0.5rem' }}>
+            <button className="dashboard-create-button" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Saving…' : 'Save'}</button>
+            <button className="recovery-link" type="button" onClick={() => setIsEditing(false)} disabled={isSubmitting}>Cancel</button>
+          </div>
+        </form>
+      </li>
+    )
+  }
+
+  return (
+    <li data-testid="activity-row" className="activity-row">
+      <time>{formatTime(activity.start_time)}{activity.end_time ? ` – ${formatTime(activity.end_time)}` : ''}</time>
+      <div className="activity-marker" />
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <h3>{activity.title}</h3>
+          {canEdit && (
+            <button type="button" onClick={() => setIsEditing(true)} className="recovery-link" style={{ fontSize: '0.85rem', padding: '0.25rem 0.5rem' }}>
+              Edit Notes
+            </button>
+          )}
+        </div>
+        {activity.location_name && <p>{activity.location_name}</p>}
+        {activity.notes && <p className="activity-note">{activity.notes}</p>}
+        {activity.external_url && <a href={activity.external_url} target="_blank" rel="noreferrer">Open map <ArrowUpRight aria-hidden="true" /></a>}
+        <ActivityComments activity={activity} />
+      </div>
+    </li>
+  )
 }
 
 function ActivityComments({ activity }: { activity: Activity }) {
