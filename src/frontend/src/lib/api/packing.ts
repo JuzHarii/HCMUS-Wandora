@@ -20,7 +20,7 @@ export type PackingItem = {
 
 export const packingApi = {
   generateSuggestions: (workspaceId: string) => {
-    return request<PackingItem[]>(`/api/v1/workspaces/${workspaceId}/packing/suggestions`, {
+    return request<{ items: PackingItem[], is_fallback: boolean }>(`/api/v1/workspaces/${workspaceId}/packing/suggestions`, {
       method: 'POST'
     })
   },

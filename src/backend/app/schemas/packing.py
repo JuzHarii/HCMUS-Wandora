@@ -44,3 +44,8 @@ class PackingItemResponse(BaseModel):
     assignments: list[PackingListEntryResponse] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
+
+
+class PackingSuggestionResult(BaseModel):
+    items: list[PackingItemResponse]
+    is_fallback: bool

@@ -13,6 +13,7 @@ export function PackingTab() {
   const [isLoading, setIsLoading] = useState(true)
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState('')
+  const [warning, setWarning] = useState('')
   
   const [newItemName, setNewItemName] = useState('')
   const [isAdding, setIsAdding] = useState(false)
@@ -39,8 +40,12 @@ export function PackingTab() {
   async function generateAI() {
     setIsGenerating(true)
     setError('')
+    setWarning('')
     try {
-      await packingApi.generateSuggestions(workspaceId)
+      const result = await packingApi.generateSuggestions(workspaceId)
+      if (result.is_fallback) {
+        setWarning('AI checklist generation is currently offline. Loading standard travel checklist.')
+      }
       await loadData()
     } catch (e) {
       setError('Could not generate packing list.')
@@ -202,6 +207,12 @@ export function PackingTab() {
       </header>
       
       {error && <div className="inline-error" role="alert"><CircleAlert aria-hidden="true" /><span>{error}</span></div>}
+      {warning && (
+        <div style={{ backgroundColor: '#f59e0b', color: 'white', padding: '0.75rem 1rem', borderRadius: '8px', marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }} role="alert">
+          <CircleAlert size={18} aria-hidden="true" />
+          <span>{warning}</span>
+        </div>
+      )}
 
       <div className="packing-list-container" style={{ marginTop: '2rem' }}>
         <form onSubmit={addItem} style={{ display: 'flex', gap: '1rem', marginBottom: '2.5rem' }}>

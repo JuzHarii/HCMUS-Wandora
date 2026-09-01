@@ -26,7 +26,7 @@ def _fallback_packing_suggestions(destination: str | None) -> list[dict[str, Any
     ]
 
 
-async def generate_packing_suggestions(db: Session, workspace_id: Any) -> list[dict[str, Any]]:
+async def generate_packing_suggestions(db: Session, workspace_id: Any) -> tuple[list[dict[str, Any]], bool]:
     """
     Sinh danh sách gợi ý hành lý tự động dựa trên địa điểm du lịch và sở thích bằng Gemini AI (PA3 2.7).
 
@@ -39,7 +39,7 @@ async def generate_packing_suggestions(db: Session, workspace_id: Any) -> list[d
     preferences = json.loads(ws.preferences_json) if ws.preferences_json else {}
 
     # Gọi AI sinh danh sách hành lý
-    items_data = await ai_service.generate_packing_suggestions(destination=ws.destination, preferences=preferences)
+    items_data, is_fallback = await ai_service.generate_packing_suggestions(destination=ws.destination, preferences=preferences)
 
     created_items = []
     for item in items_data:
@@ -64,11 +64,12 @@ async def generate_packing_suggestions(db: Session, workspace_id: Any) -> list[d
     for item_obj in created_items:
         db.refresh(item_obj)
 
-    return (
+    items_list = (
         db.query(PackingItem)
         .filter(PackingItem.workspace_id == str(workspace_id))
         .all()
     )
+    return items_list, is_fallback
 
 
 def add_packing_item(db: Session, workspace_id: Any, payload: PackingItemCreate) -> dict[str, Any]:

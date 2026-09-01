@@ -4,21 +4,24 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_user
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.packing import PackingAssignmentRequest, PackingItemCreate, PackingItemResponse, PackingItemUpdate
+from app.schemas.packing import PackingAssignmentRequest, PackingItemCreate, PackingItemResponse, PackingItemUpdate, PackingSuggestionResult
 from app.services import packing_service
 
 router = APIRouter()
 
 
-@router.post("/workspaces/{workspace_id}/packing/suggestions", response_model=list[PackingItemResponse])
+@router.post("/workspaces/{workspace_id}/packing/suggestions", response_model=PackingSuggestionResult)
 async def generate_packing_suggestions(
     workspace_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> list[PackingItemResponse]:
+) -> PackingSuggestionResult:
     """Sinh danh sách gợi ý hành lý bằng AI cho chuyến đi."""
-    res = await packing_service.generate_packing_suggestions(db, workspace_id)
-    return [PackingItemResponse.model_validate(item) for item in res]
+    items_list, is_fallback = await packing_service.generate_packing_suggestions(db, workspace_id)
+    return PackingSuggestionResult(
+        items=[PackingItemResponse.model_validate(item) for item in items_list],
+        is_fallback=is_fallback
+    )
 
 
 @router.get("/workspaces/{workspace_id}/packing", response_model=list[PackingItemResponse])

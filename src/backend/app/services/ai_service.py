@@ -279,10 +279,10 @@ def _fallback_packing_suggestions(destination: str | None) -> list[dict[str, Any
 async def generate_packing_suggestions(
     destination: str | None = None,
     preferences: dict[str, Any] | None = None,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], bool]:
     settings = get_settings()
     if not settings.openai_api_key:
-        return _fallback_packing_suggestions(destination)
+        return _fallback_packing_suggestions(destination), True
 
     dest = destination or "Điểm du lịch"
     pref_str = json.dumps(preferences, ensure_ascii=False) if preferences else "Không có"
@@ -325,13 +325,13 @@ BẮT BUỘC trả về định dạng JSON array thuần túy theo đúng cấu
                 if content:
                     parsed = _safe_parse_json(content)
                     if isinstance(parsed, dict) and "items" in parsed: # If the array was wrapped
-                        return parsed["items"]
+                        return parsed["items"], False
                     if isinstance(parsed, list) and len(parsed) > 0:
-                        return parsed
+                        return parsed, False
     except Exception as e:
         logger.warning(f"Lỗi gọi OpenAI API sinh hành lý: {e}. Chuyển sang fallback.")
 
-    return _fallback_packing_suggestions(destination)
+    return _fallback_packing_suggestions(destination), True
 
 
 class AIService:
