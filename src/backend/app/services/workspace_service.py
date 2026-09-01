@@ -105,8 +105,14 @@ class WorkspaceService:
     def get_workspace(self, workspace_id: Any) -> Workspace:
         return get_workspace(self.db, workspace_id)
 
-    def get_trip_overview(self, workspace_id: Any) -> TripOverviewResponse:
+    def get_trip_overview(self, workspace_id: Any, user_id: Any) -> TripOverviewResponse:
         workspace = self.get_workspace(workspace_id)
+        
+        member = self.db.query(WorkspaceMember).filter(
+            WorkspaceMember.workspace_id == workspace_id,
+            WorkspaceMember.user_id == user_id
+        ).first()
+        current_user_role = member.role if member else "viewer"
         destinations = self.db.scalars(
             select(WorkspaceDestination).where(WorkspaceDestination.workspace_id == workspace_id).order_by(WorkspaceDestination.order_index)
         ).all()
@@ -139,4 +145,5 @@ class WorkspaceService:
             itinerary_days=itinerary_days,
             itinerary_activities=itinerary_activities,
             manual_activities=manual_activities,
+            current_user_role=current_user_role,
         )

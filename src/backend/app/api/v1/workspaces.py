@@ -67,7 +67,7 @@ def get_trip_overview(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TripOverviewResponse:
-    overview = WorkspaceService(db).get_trip_overview(workspace_id)
+    overview = WorkspaceService(db).get_trip_overview(workspace_id, current_user.id)
     return overview
 
 

@@ -17,7 +17,7 @@ export function TripWorkspacePage() {
     setError('')
     try {
       const overview = await workspacesApi.getTripOverview(workspaceId)
-      setWorkspace(overview.workspace)
+      setWorkspace({ ...overview.workspace, current_user_role: overview.current_user_role })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load this trip.')
     } finally {

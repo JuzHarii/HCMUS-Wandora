@@ -15,6 +15,7 @@ export function MembersTab() {
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState('viewer')
   const [isInviting, setIsInviting] = useState(false)
+  const canEdit = workspace.current_user_role !== 'viewer'
 
   const loadMembers = useCallback(async () => {
     setIsLoading(true)
@@ -96,17 +97,23 @@ export function MembersTab() {
                   <span className="status-pill" style={{ background: 'var(--color-brand-muted)' }}><Shield size={14} style={{ marginRight: '4px' }} /> Owner</span>
                 ) : (
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <select 
-                      value={member.role?.toLowerCase()} 
-                      onChange={(e) => void changeRole(member.user_id, e.target.value)}
-                      style={{ padding: '0.25rem', borderRadius: '4px', border: '1px solid var(--color-border)', fontSize: '0.85rem' }}
-                    >
-                      <option value="editor">Editor</option>
-                      <option value="viewer">Viewer</option>
-                    </select>
-                    <button type="button" onClick={() => void removeMember(member.user_id)} style={{ background: 'transparent', border: 'none', color: 'var(--color-text-dim)', cursor: 'pointer' }}>
-                      <Trash2 size={18} />
-                    </button>
+                    {canEdit ? (
+                      <select 
+                        value={member.role?.toLowerCase()} 
+                        onChange={(e) => void changeRole(member.user_id, e.target.value)}
+                        style={{ padding: '0.25rem', borderRadius: '4px', border: '1px solid var(--color-border)', fontSize: '0.85rem' }}
+                      >
+                        <option value="editor">Editor</option>
+                        <option value="viewer">Viewer</option>
+                      </select>
+                    ) : (
+                      <span className="status-pill">{member.role}</span>
+                    )}
+                    {canEdit && (
+                      <button type="button" onClick={() => void removeMember(member.user_id)} style={{ background: 'transparent', border: 'none', color: 'var(--color-text-dim)', cursor: 'pointer' }}>
+                        <Trash2 size={18} />
+                      </button>
+                    )}
                   </div>
                 )}
               </li>
@@ -114,25 +121,27 @@ export function MembersTab() {
           </ul>
         </div>
         
-        <aside style={{ background: 'var(--color-surface-dim)', padding: '1.5rem', borderRadius: '0.5rem', height: 'fit-content' }}>
-          <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>Invite a member</h3>
-          <form onSubmit={inviteMember} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.85rem' }}>
-              Email address
-              <input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} required style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--color-border)' }} />
-            </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.85rem' }}>
-              Role
-              <select value={inviteRole} onChange={e => setInviteRole(e.target.value)} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--color-border)' }}>
-                <option value="editor">Editor (Can edit itinerary)</option>
-                <option value="viewer">Viewer (Read-only & vote)</option>
-              </select>
-            </label>
-            <button className="button button-primary" type="submit" disabled={isInviting || !inviteEmail.trim()} style={{ marginTop: '0.5rem' }}>
-              {isInviting ? <LoaderCircle className="spin" aria-hidden="true" /> : <UserPlus aria-hidden="true" />} Send Invite
-            </button>
-          </form>
-        </aside>
+        {canEdit && (
+          <aside style={{ background: 'var(--color-surface-dim)', padding: '1.5rem', borderRadius: '0.5rem', height: 'fit-content' }}>
+            <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>Invite a member</h3>
+            <form onSubmit={inviteMember} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.85rem' }}>
+                Email address
+                <input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} required style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--color-border)' }} />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.85rem' }}>
+                Role
+                <select value={inviteRole} onChange={e => setInviteRole(e.target.value)} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--color-border)' }}>
+                  <option value="editor">Editor (Can edit itinerary)</option>
+                  <option value="viewer">Viewer (Read-only & vote)</option>
+                </select>
+              </label>
+              <button className="button button-primary" type="submit" disabled={isInviting || !inviteEmail.trim()} style={{ marginTop: '0.5rem' }}>
+                {isInviting ? <LoaderCircle className="spin" aria-hidden="true" /> : <UserPlus aria-hidden="true" />} Send Invite
+              </button>
+            </form>
+          </aside>
+        )}
       </div>
     </div>
   )

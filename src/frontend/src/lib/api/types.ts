@@ -27,6 +27,7 @@ export type Workspace = {
   notes: string | null
   created_at: string
   updated_at: string
+  current_user_role?: string | null
 }
 
 export type Activity = {
@@ -97,6 +98,7 @@ export type TripOverview = {
   itinerary_days: number
   itinerary_activities: number
   manual_activities: number
+  current_user_role: string | null
 }
 
 export type CreateWorkspaceInput = {
