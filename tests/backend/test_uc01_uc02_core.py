@@ -42,6 +42,27 @@ def test_uc01_rejects_an_end_date_before_start_date():
         )
 
 
+def test_uc01_requires_a_destination():
+    with pytest.raises(ValueError):
+        WorkspaceCreate(
+            title="Untitled trip",
+            destination="",
+            start_date=date(2026, 9, 1),
+            end_date=date(2026, 9, 3),
+        )
+
+
+def test_uc01_rejects_a_nonpositive_group_size():
+    with pytest.raises(ValueError):
+        WorkspaceCreate(
+            title="Invalid group size",
+            destination="Hue",
+            start_date=date(2026, 9, 1),
+            end_date=date(2026, 9, 3),
+            group_size=0,
+        )
+
+
 def test_uc02_fallback_draft_has_days_and_activities(monkeypatch):
     service = AIService()
     monkeypatch.setattr(service.settings, "gemini_api_key", None)
@@ -56,6 +77,22 @@ def test_uc02_fallback_draft_has_days_and_activities(monkeypatch):
     assert len(draft.draft.days) == 3
     assert [day.travel_date for day in draft.draft.days] == [date(2026, 9, 1), date(2026, 9, 2), date(2026, 9, 3)]
     assert all(day.activities for day in draft.draft.days)
+
+
+def test_uc02_generated_activities_have_the_required_schedule_fields(monkeypatch):
+    service = AIService()
+    monkeypatch.setattr(service.settings, "gemini_api_key", None)
+    draft = service.generate_itinerary_draft(
+        {
+            "destination": "Da Lat",
+            "start_date": date(2026, 9, 20),
+            "end_date": date(2026, 9, 20),
+        },
+    )
+    activity = draft.draft.days[0].activities[0]
+    assert activity.title
+    assert activity.start_time is not None
+    assert activity.end_time is not None
 
 
 def test_uc02_regenerate_preserves_manual_activity_and_can_restore_a_snapshot(monkeypatch):

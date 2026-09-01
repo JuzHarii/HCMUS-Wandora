@@ -3,7 +3,7 @@ import { ArrowRight, CalendarDays, CalendarPlus, CircleAlert, LoaderCircle, Sear
 import { Link } from 'react-router'
 
 import { WorkspaceShell } from '@/components/layout/WorkspaceShell'
-import { listWorkspaces, type Workspace } from '@/lib/api'
+import { workspacesApi, type Workspace } from '@/lib/api'
 import { formatDashboardDates, formatRelativeDate, getSetupProgress } from '@/lib/trip-formatters'
 
 export function TripDashboardPage() {
@@ -17,7 +17,7 @@ export function TripDashboardPage() {
     setIsLoading(true)
     setError('')
     try {
-      setWorkspaces(await listWorkspaces())
+      setWorkspaces(await workspacesApi.listWorkspaces())
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Could not load your trips.')
     } finally {

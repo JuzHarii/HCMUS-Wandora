@@ -1,5 +1,9 @@
-"""Nghiệp vụ quản lý workspace và dữ liệu tổng quan."""
+from __future__ import annotations
 
+import json
+from typing import Any
+
+from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -9,52 +13,106 @@ from app.models.workspace import Workspace, WorkspaceDestination
 from app.schemas.workspace import TripOverviewResponse, WorkspaceCreate
 
 
-class WorkspaceService:
-    """Tập hợp nghiệp vụ liên quan đến workspace."""
+def create_workspace(db: Session, payload: WorkspaceCreate, owner_id: Any = None) -> Workspace:
+    prefs_str = json.dumps(payload.preferences) if payload.preferences else None
+    db_workspace = Workspace(
+        title=payload.title,
+        destination=payload.destination,
+        start_date=payload.start_date,
+        end_date=payload.end_date,
+        budget=payload.budget,
+        travel_style=payload.travel_style,
+        group_size=payload.group_size,
+        notes=payload.notes,
+        preferences_json=prefs_str,
+        owner_id=owner_id,
+    )
+    db.add(db_workspace)
+    db.flush()
 
+    if payload.destination:
+        dest_obj = WorkspaceDestination(
+            workspace_id=db_workspace.id,
+            destination_name=payload.destination,
+            name=payload.destination,
+            order_index=0,
+        )
+        db.add(dest_obj)
+
+    if owner_id:
+        db.add(WorkspaceMember(workspace_id=db_workspace.id, user_id=owner_id, role="owner", is_owner=True))
+
+    db.commit()
+    db.refresh(db_workspace)
+    return db_workspace
+
+
+def get_workspace(db: Session, workspace_id: Any) -> Workspace:
+    ws = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    return ws
+
+
+def list_workspaces(db: Session, skip: int = 0, limit: int = 100) -> list[Workspace]:
+    return db.query(Workspace).offset(skip).limit(limit).all()
+
+
+def get_trip_overview(db: Session, workspace_id: Any) -> dict[str, Any]:
+    ws = get_workspace(db, workspace_id)
+
+    total_days = db.query(ItineraryDay).filter(ItineraryDay.workspace_id == workspace_id).count()
+
+    total_activities = (
+        db.query(func.count(ItineraryActivity.id))
+        .join(ItineraryDay, ItineraryActivity.day_id == ItineraryDay.id)
+        .filter(ItineraryDay.workspace_id == workspace_id)
+        .scalar()
+        or 0
+    )
+
+    if total_days == 0 and ws.start_date and ws.end_date:
+        total_days = (ws.end_date - ws.start_date).days + 1
+        if total_days < 0:
+            total_days = 0
+
+    return {
+        "workspace_id": ws.id,
+        "title": ws.title,
+        "destination": ws.destination,
+        "start_date": ws.start_date,
+        "end_date": ws.end_date,
+        "total_days": total_days,
+        "total_activities": total_activities,
+    }
+
+
+class WorkspaceService:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def create_workspace(self, payload: WorkspaceCreate, owner_id: str) -> Workspace:
-        """Tạo workspace mới từ payload UI."""
+    def create_workspace(self, payload: WorkspaceCreate, owner_id: Any) -> Workspace:
+        return create_workspace(self.db, payload, owner_id=owner_id)
 
-        workspace = Workspace(**payload.model_dump())
-        self.db.add(workspace)
-        self.db.flush()
-
-        destination = WorkspaceDestination(
-            workspace_id=workspace.id,
-            destination_name=payload.destination,
-            order_index=0,
-        )
-        self.db.add(destination)
-        self.db.add(WorkspaceMember(workspace_id=workspace.id, user_id=owner_id, is_owner=True))
-        self.db.commit()
-        self.db.refresh(workspace)
-        return workspace
-
-    def list_user_workspaces(self, user_id: str) -> list[Workspace]:
-        """Trả về các chuyến đi mà người dùng hiện tại là thành viên."""
-
+    def list_user_workspaces(self, user_id: Any) -> list[Workspace]:
         return self.db.scalars(
             select(Workspace)
             .join(WorkspaceMember, WorkspaceMember.workspace_id == Workspace.id)
             .where(WorkspaceMember.user_id == user_id)
-            .order_by(Workspace.updated_at.desc())
+            .order_by(Workspace.created_at.desc())
         ).all()
 
-    def get_workspace(self, workspace_id: str) -> Workspace:
-        """Lấy workspace theo định danh."""
+    def get_workspace(self, workspace_id: Any) -> Workspace:
+        return get_workspace(self.db, workspace_id)
 
-        workspace = self.db.get(Workspace, workspace_id)
-        if workspace is None:
-            raise ValueError("Workspace không tồn tại.")
-        return workspace
-
-    def get_trip_overview(self, workspace_id: str) -> TripOverviewResponse:
-        """Tổng hợp dữ liệu để hiển thị màn hình 5A/5B."""
-
+    def get_trip_overview(self, workspace_id: Any, user_id: Any) -> TripOverviewResponse:
         workspace = self.get_workspace(workspace_id)
+        
+        member = self.db.query(WorkspaceMember).filter(
+            WorkspaceMember.workspace_id == workspace_id,
+            WorkspaceMember.user_id == user_id
+        ).first()
+        current_user_role = member.role if member else "viewer"
         destinations = self.db.scalars(
             select(WorkspaceDestination).where(WorkspaceDestination.workspace_id == workspace_id).order_by(WorkspaceDestination.order_index)
         ).all()
@@ -69,10 +127,17 @@ class WorkspaceService:
             )
         ) or 0
         return TripOverviewResponse(
+            workspace_id=workspace.id,
+            title=workspace.title,
+            destination=workspace.destination,
+            start_date=workspace.start_date,
+            end_date=workspace.end_date,
+            total_days=itinerary_days,
+            total_activities=itinerary_activities,
             workspace=workspace,
             destinations=[
                 {
-                    "destination_name": item.destination_name,
+                    "destination_name": item.destination_name or item.name or "",
                     "order_index": item.order_index,
                 }
                 for item in destinations
@@ -80,4 +145,5 @@ class WorkspaceService:
             itinerary_days=itinerary_days,
             itinerary_activities=itinerary_activities,
             manual_activities=manual_activities,
+            current_user_role=current_user_role,
         )

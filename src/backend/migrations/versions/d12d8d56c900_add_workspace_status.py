@@ -18,11 +18,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "workspaces",
-        sa.Column("status", sa.String(length=32), nullable=False, server_default="Draft"),
-    )
-    op.alter_column("workspaces", "status", server_default=None)
+    with op.batch_alter_table("workspaces") as batch_op:
+        batch_op.add_column(sa.Column("status", sa.String(length=32), nullable=False, server_default="Draft"))
+        batch_op.alter_column("status", server_default=None)
 
 
 def downgrade() -> None:
