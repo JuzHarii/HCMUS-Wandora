@@ -155,7 +155,7 @@ export function PackingTab() {
           width: 24px;
           height: 24px;
           border-radius: 50%;
-          border: 2px solid var(--color-text-dim);
+          border: 2.5px solid var(--color-ink-muted, #5e6b65);
           background: var(--color-surface);
           color: white;
           display: flex;

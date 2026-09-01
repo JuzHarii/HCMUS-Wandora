@@ -15,7 +15,7 @@ src/backend/*.db
 backups/
 tests/e2e/screenshots/
 tmp/
-
+archive/
 extracted_ucs.txt
 # Local Docs / Scratch notes
 docs/backend_usecases_and_functions.md
