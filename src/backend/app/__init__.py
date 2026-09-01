@@ -1,1 +1,1 @@
-"""Gói ứng dụng chính cho dự án HCMUS-Wandora."""
+"""Gói ứng dụng chính cho dự án HCMUS-Wandora backend."""

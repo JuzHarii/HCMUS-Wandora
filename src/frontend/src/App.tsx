@@ -7,8 +7,12 @@ const LandingPage = lazy(() => import('@/pages/LandingPage').then(({ LandingPage
 const AuthPage = lazy(() => import('@/pages/AuthPage').then(({ AuthPage }) => ({ default: AuthPage })))
 const TripDashboardPage = lazy(() => import('@/pages/TripDashboardPage').then(({ TripDashboardPage }) => ({ default: TripDashboardPage })))
 const TripCreationPage = lazy(() => import('@/pages/TripCreationPage').then(({ TripCreationPage }) => ({ default: TripCreationPage })))
-const ItineraryPage = lazy(() => import('@/pages/ItineraryPage').then(({ ItineraryPage }) => ({ default: ItineraryPage })))
-const PackingPage = lazy(() => import('@/pages/PackingPage').then(({ PackingPage }) => ({ default: PackingPage })))
+const TripWorkspacePage = lazy(() => import('@/pages/TripWorkspacePage').then(({ TripWorkspacePage }) => ({ default: TripWorkspacePage })))
+const ItineraryTab = lazy(() => import('@/pages/tabs/ItineraryTab').then(({ ItineraryTab }) => ({ default: ItineraryTab })))
+const PackingTab = lazy(() => import('@/pages/tabs/PackingTab').then(({ PackingTab }) => ({ default: PackingTab })))
+const MembersTab = lazy(() => import('@/pages/tabs/MembersTab').then(({ MembersTab }) => ({ default: MembersTab })))
+const ReviewsTab = lazy(() => import('@/pages/tabs/ReviewsTab').then(({ ReviewsTab }) => ({ default: ReviewsTab })))
+const ShareTab = lazy(() => import('@/pages/tabs/ShareTab').then(({ ShareTab }) => ({ default: ShareTab })))
 
 function App() {
   return (
@@ -21,8 +25,14 @@ function App() {
           <Route path="/home" element={<RequireAuth><TripDashboardPage /></RequireAuth>} />
           <Route path="/trips" element={<Navigate replace to="/home" />} />
           <Route path="/trips/new" element={<RequireAuth><TripCreationPage /></RequireAuth>} />
-          <Route path="/trips/:workspaceId" element={<RequireAuth><ItineraryPage /></RequireAuth>} />
-          <Route path="/trips/:workspaceId/packing" element={<RequireAuth><PackingPage /></RequireAuth>} />
+          <Route path="/trips/:workspaceId" element={<RequireAuth><TripWorkspacePage /></RequireAuth>}>
+            <Route index element={<Navigate to="itinerary" replace />} />
+            <Route path="itinerary" element={<ItineraryTab />} />
+            <Route path="packing" element={<PackingTab />} />
+            <Route path="members" element={<MembersTab />} />
+            <Route path="reviews" element={<ReviewsTab />} />
+            <Route path="share" element={<ShareTab />} />
+          </Route>
           <Route path="*" element={<Navigate replace to="/" />} />
         </Routes>
       </Suspense>
