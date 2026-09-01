@@ -75,7 +75,7 @@ export function ItineraryTab() {
       setPreviewDraft(preview)
       setAdjustPrompt('')
     } catch (e: any) {
-      setError(e.message || 'Could not adjust itinerary.')
+      setError('AI could not process that request. Please rephrase or try again.')
     } finally {
       setIsAdjusting(false)
     }
