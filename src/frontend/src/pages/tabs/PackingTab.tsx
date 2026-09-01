@@ -51,8 +51,19 @@ export function PackingTab() {
 
   async function toggleItem(item: PackingItem) {
     try {
-      const updated = await packingApi.updateItem(item.id, { is_checked: !item.is_checked })
-      setItems(items.map(i => i.id === updated.id ? updated : i))
+      const assignment = item.assignments?.[0]
+      const isChecked = assignment ? !assignment.is_checked : true
+      if (assignment) {
+        const updated = await packingApi.assignItem(item.id, { user_id: assignment.user_id, is_checked: isChecked })
+        setItems(items.map(i => i.id === updated.id ? updated : i))
+      } else {
+        // Must assign to someone to check it off. If not assigned, assign to current user or first member.
+        const userId = members.length > 0 ? members[0].user_id : workspace.owner_id
+        if (userId) {
+          const updated = await packingApi.assignItem(item.id, { user_id: userId, is_checked: true })
+          setItems(items.map(i => i.id === updated.id ? updated : i))
+        }
+      }
     } catch (e) {
       // Ignore
     }
@@ -69,7 +80,8 @@ export function PackingTab() {
 
   async function assignItem(itemId: string, userId: string | null) {
     try {
-      const updated = await packingApi.assignItem(itemId, { assigned_to: userId })
+      if (!userId) return // Backend currently doesn't support unassigning easily via this endpoint
+      const updated = await packingApi.assignItem(itemId, { user_id: userId, is_checked: false })
       setItems(items.map(i => i.id === updated.id ? updated : i))
     } catch (e) {
       // Ignore
@@ -128,35 +140,41 @@ export function PackingTab() {
           </div>
         ) : (
           <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {items.map(item => (
-              <li key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem', background: 'var(--color-surface-dim)', borderRadius: '0.5rem' }}>
-                <button 
-                  type="button" 
-                  onClick={() => void toggleItem(item)}
-                  style={{ width: '24px', height: '24px', borderRadius: '50%', border: `2px solid ${item.is_checked ? 'var(--color-brand)' : 'var(--color-border)'}`, background: item.is_checked ? 'var(--color-brand)' : 'transparent', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                >
-                  {item.is_checked && <Check size={14} />}
-                </button>
-                <span style={{ flex: 1, textDecoration: item.is_checked ? 'line-through' : 'none', color: item.is_checked ? 'var(--color-text-dim)' : 'inherit' }}>
-                  {item.name} {item.category && <span style={{ fontSize: '0.8rem', color: 'var(--color-text-dim)', marginLeft: '0.5rem' }}>({item.category})</span>}
-                </span>
-                
-                <select 
-                  value={item.assigned_to || ''} 
-                  onChange={(e) => void assignItem(item.id, e.target.value || null)}
-                  style={{ padding: '0.25rem', borderRadius: '4px', border: '1px solid var(--color-border)', fontSize: '0.85rem' }}
-                >
-                  <option value="">Unassigned</option>
-                  {members.map(m => (
-                    <option key={m.user_id} value={m.user_id}>{m.user?.full_name || m.user?.email}</option>
-                  ))}
-                </select>
-                
-                <button type="button" onClick={() => void deleteItem(item.id)} style={{ background: 'transparent', border: 'none', color: 'var(--color-text-dim)', cursor: 'pointer' }}>
-                  <Trash2 size={18} />
-                </button>
-              </li>
-            ))}
+            {items.map(item => {
+              const assignment = item.assignments?.[0]
+              const isChecked = assignment ? assignment.is_checked : false
+              const assigneeId = assignment ? String(assignment.user_id) : ''
+              
+              return (
+                <li key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem', background: 'var(--color-surface-dim)', borderRadius: '0.5rem' }}>
+                  <button 
+                    type="button" 
+                    onClick={() => void toggleItem(item)}
+                    style={{ width: '24px', height: '24px', borderRadius: '50%', border: `2px solid ${isChecked ? 'var(--color-brand)' : 'var(--color-border)'}`, background: isChecked ? 'var(--color-brand)' : 'transparent', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                  >
+                    {isChecked && <Check size={14} />}
+                  </button>
+                  <span style={{ flex: 1, textDecoration: isChecked ? 'line-through' : 'none', color: isChecked ? 'var(--color-text-dim)' : 'inherit' }}>
+                    {item.name} {item.category && <span style={{ fontSize: '0.8rem', color: 'var(--color-text-dim)', marginLeft: '0.5rem' }}>({item.category})</span>}
+                  </span>
+                  
+                  <select 
+                    value={assigneeId} 
+                    onChange={(e) => void assignItem(item.id, e.target.value || null)}
+                    style={{ padding: '0.25rem', borderRadius: '4px', border: '1px solid var(--color-border)', fontSize: '0.85rem' }}
+                  >
+                    <option value="">Unassigned</option>
+                    {members.map(m => (
+                      <option key={m.user_id} value={m.user_id}>{m.user_full_name || m.user_email || 'Unknown User'}</option>
+                    ))}
+                  </select>
+                  
+                  <button type="button" onClick={() => void deleteItem(item.id)} style={{ background: 'transparent', border: 'none', color: 'var(--color-text-dim)', cursor: 'pointer' }}>
+                    <Trash2 size={18} />
+                  </button>
+                </li>
+              )
+            })}
           </ul>
         )}
       </div>

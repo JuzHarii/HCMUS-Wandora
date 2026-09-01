@@ -15,6 +15,7 @@ from app.schemas.itinerary import (
     ActivityResponse,
     ActivityUpdate,
     AdjustItineraryRequest,
+    ApplyAdjustmentRequest,
     GenerateItineraryRequest,
     GeneratedItineraryPayload,
     ItineraryActivityCreate,
@@ -188,7 +189,10 @@ async def adjust_itinerary(db: Session, workspace_id: Any, instruction: str) -> 
         existing_itinerary=existing_days_data,
     )
 
-    return _persist_generated_itinerary(db, workspace_id, days_data, keep_manual=True)
+    return {
+        "source": "openai",
+        "draft": {"days": days_data}
+    }
 
 
 def _validate_time_overlap(db: Session, day_id: str, new_start: time | None, new_end: time | None, exclude_activity_id: str | None = None) -> None:
@@ -529,12 +533,11 @@ class ItineraryService:
         self.db.refresh(activity)
         return self._to_activity_response(activity)
 
-    def adjust_itinerary(self, workspace_id: Any, request: AdjustItineraryRequest) -> ItineraryResponse:
+    def apply_adjusted_itinerary(self, workspace_id: Any, request: ApplyAdjustmentRequest) -> ItineraryResponse:
         workspace = self._get_workspace(workspace_id)
         self._snapshot_current_itinerary(workspace)
-        result = self.ai_service.generate_itinerary_draft(self._workspace_context(workspace), request.instruction)
-        self._persist_generated_itinerary(workspace_id, result.draft, replace_existing=True)
-        self._record_generation(workspace, result.source)
+        self._persist_generated_itinerary(workspace_id, request.draft, replace_existing=True)
+        self._record_generation(workspace, request.source)
         return self.get_itinerary(workspace_id)
 
     def _persist_generated_itinerary(

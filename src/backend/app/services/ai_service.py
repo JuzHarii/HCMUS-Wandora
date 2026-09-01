@@ -256,6 +256,11 @@ async def generate_itinerary_draft(
     )
     if ai_result:
         return ai_result
+        
+    if adjustment_instruction:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail="AI could not process that request. Please rephrase or try again.")
+        
     return _fallback_draft(destination, start_date, end_date, preferences)
 
 

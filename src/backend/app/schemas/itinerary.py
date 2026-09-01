@@ -180,3 +180,8 @@ class ItineraryPreviewResponse(BaseModel):
 class SaveItineraryDraftRequest(BaseModel):
     source: str
     draft: GeneratedItineraryPayload
+
+
+class ApplyAdjustmentRequest(BaseModel):
+    source: str
+    draft: GeneratedItineraryPayload

@@ -14,6 +14,7 @@ from app.schemas.itinerary import (
     ItineraryResponse,
     ItineraryVersionResponse,
     SaveItineraryDraftRequest,
+    ApplyAdjustmentRequest,
 )
 from app.schemas.workspace import TripOverviewResponse, WorkspaceCreate, WorkspaceResponse
 from app.services import itinerary_service, workspace_service
@@ -132,12 +133,23 @@ def restore_itinerary_version(
     return ItineraryService(db).restore_version(workspace_id, version_id)
 
 
-@router.post("/{workspace_id}/adjust-itinerary", response_model=ItineraryResponse)
-async def adjust_itinerary(
+@router.post("/{workspace_id}/adjust-itinerary/preview", response_model=ItineraryPreviewResponse)
+async def preview_itinerary_adjustment(
     workspace_id: Any,
     payload: AdjustItineraryRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> ItineraryResponse:
+) -> ItineraryPreviewResponse:
     result = await itinerary_service.adjust_itinerary(db, workspace_id, instruction=payload.instruction)
-    return ItineraryResponse.model_validate(result)
+    # result returned from adjust_itinerary is now ItineraryPreviewResponse (we will modify itinerary_service next)
+    return result
+
+
+@router.post("/{workspace_id}/adjust-itinerary/apply", response_model=ItineraryResponse)
+def apply_itinerary_adjustment(
+    workspace_id: Any,
+    payload: ApplyAdjustmentRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ItineraryResponse:
+    return ItineraryService(db).apply_adjusted_itinerary(workspace_id, payload)

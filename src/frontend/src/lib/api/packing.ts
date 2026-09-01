@@ -1,12 +1,20 @@
 import { request } from './client'
 
+export type PackingListEntry = {
+  id: string | number
+  packing_item_id: string | number
+  user_id: string | number
+  user_email?: string | null
+  user_full_name?: string | null
+  is_checked: boolean
+}
+
 export type PackingItem = {
   id: string
   workspace_id: string
   name: string
-  category: string | null
-  is_checked: boolean
-  assigned_to: string | null
+  category?: string | null
+  assignments: PackingListEntry[]
   created_at: string
 }
 
@@ -35,7 +43,7 @@ export const packingApi = {
     })
   },
 
-  assignItem: (itemId: string, payload: { assigned_to: string | null }) => {
+  assignItem: (itemId: string, payload: { user_id: string | number; is_checked?: boolean }) => {
     return request<PackingItem>(`/api/v1/packing/items/${itemId}/assign`, {
       method: 'POST',
       body: JSON.stringify(payload)

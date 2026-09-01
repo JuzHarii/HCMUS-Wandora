@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { useOutletContext, useParams } from 'react-router'
 import { ArrowUpRight, CircleAlert, Compass, History, LoaderCircle, RotateCcw, Sparkles } from 'lucide-react'
 
-import { workspacesApi, itinerariesApi, activitiesApi, type ActivityComment, type Itinerary, type ItineraryDay, type ItineraryVersion, type Workspace, type Activity } from '@/lib/api'
+import { workspacesApi, itinerariesApi, activitiesApi, type ActivityComment, type Itinerary, type ItineraryDay, type ItineraryVersion, type Workspace, type Activity, type ItineraryPreview } from '@/lib/api'
 import { formatDateRange, formatDay, formatTime } from '@/lib/trip-formatters'
 
 export function ItineraryTab() {
@@ -19,6 +19,7 @@ export function ItineraryTab() {
   const [error, setError] = useState('')
   const [adjustPrompt, setAdjustPrompt] = useState('')
   const [isAdjusting, setIsAdjusting] = useState(false)
+  const [previewDraft, setPreviewDraft] = useState<ItineraryPreview | null>(null)
   const canEdit = workspace.current_user_role !== 'viewer'
 
   const loadTrip = useCallback(async () => {
@@ -70,11 +71,26 @@ export function ItineraryTab() {
     setIsAdjusting(true)
     setError('')
     try {
-      setItinerary(await workspacesApi.adjustItinerary(workspaceId, { prompt: adjustPrompt.trim() }))
+      const preview = await workspacesApi.previewAdjustment(workspaceId, { prompt: adjustPrompt.trim() })
+      setPreviewDraft(preview)
       setAdjustPrompt('')
+    } catch (e: any) {
+      setError(e.message || 'Could not adjust itinerary.')
+    } finally {
+      setIsAdjusting(false)
+    }
+  }
+
+  async function applyAdjustment() {
+    if (!previewDraft) return
+    setIsAdjusting(true)
+    setError('')
+    try {
+      setItinerary(await workspacesApi.applyAdjustment(workspaceId, previewDraft))
+      setPreviewDraft(null)
       await loadTrip()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not adjust itinerary.')
+    } catch (e: any) {
+      setError(e.message || 'Could not apply adjustment.')
     } finally {
       setIsAdjusting(false)
     }
@@ -100,6 +116,37 @@ export function ItineraryTab() {
   if (isLoading) return <section className="workspace-loading"><LoaderCircle className="spin" aria-hidden="true" /><p>Loading itinerary…</p></section>
   if (error && !itinerary) return <section className="workspace-loading"><CircleAlert aria-hidden="true" /><h1>We could not open this itinerary.</h1><p>{error}</p><button className="dashboard-create-button" type="button" onClick={() => void loadTrip()}>Try again</button></section>
 
+  const mappedPreviewItinerary = previewDraft ? {
+    workspace_id: workspace.id,
+    generation_source: previewDraft.source,
+    generated_at: new Date().toISOString(),
+    days: previewDraft.draft.days.map((d: any) => ({
+      id: `preview-${d.day_index}`,
+      workspace_id: workspace.id,
+      day_index: d.day_index,
+      date_value: d.travel_date,
+      travel_date: d.travel_date,
+      title: d.title,
+      summary: d.summary,
+      activities: d.activities.map((a: any, i: number) => ({
+        id: `preview-act-${d.day_index}-${i}`,
+        day_id: `preview-${d.day_index}`,
+        title: a.title,
+        start_time: a.start_time,
+        end_time: a.end_time,
+        location_name: a.location_name,
+        activity_type: a.activity_type,
+        notes: a.notes,
+        external_url: a.external_url,
+        is_manual: false,
+        order_index: i,
+        sort_order: i,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }))
+    }))
+  } as Itinerary : null;
+
   return (
     <div className="workspace-view workspace-itinerary-view">
       <section className="itinerary-hero"><div><p className="eyebrow"><Compass aria-hidden="true" /> Itinerary draft</p><p>{workspace.destination} · {formatDateRange(workspace.start_date, workspace.end_date)} · {workspace.group_size ?? 1} travelers</p></div><div className="itinerary-actions"><span className={`generation-source generation-source-${itinerary?.generation_source ?? 'unknown'}`}>{formatGenerationSource(itinerary?.generation_source)}</span><span className="status-pill">{workspace.status ?? 'Draft'}</span><div className="itinerary-action-buttons"><button className="button button-secondary itinerary-history-button" type="button" onClick={() => setIsHistoryOpen((open) => !open)} aria-expanded={isHistoryOpen}><History aria-hidden="true" /> History{versions.length > 0 ? ` (${versions.length})` : ''}</button>{canEdit && <button data-testid="regenerate-itinerary-button" className="button button-primary" type="button" onClick={() => void regenerate()} disabled={isGenerating}>{isGenerating ? <><LoaderCircle className="spin" aria-hidden="true" /> Regenerating…</> : <><Compass aria-hidden="true" /> Regenerate itinerary</>}</button>}</div></div></section>
@@ -122,7 +169,25 @@ export function ItineraryTab() {
 
       {isHistoryOpen && <section className="itinerary-history" aria-label="Itinerary version history"><div><p className="dashboard-kicker">Version history</p><h2>Restore a previous draft</h2><p>Each AI regeneration saves the itinerary that came before it.</p></div>{versions.length === 0 ? <p className="history-empty">No previous versions yet. Regenerate once to create a restore point.</p> : <ol>{versions.map((version) => <li key={version.id}><div><strong>{formatGenerationSource(version.generation_source)}</strong><span>{formatVersionTime(version.created_at)}</span></div>{canEdit && <button className="workspace-back-link" type="button" onClick={() => void restoreVersion(version)} disabled={isRestoring}>{isRestoring ? <LoaderCircle className="spin" aria-hidden="true" /> : <RotateCcw aria-hidden="true" />} Restore</button>}</li>)}</ol>}</section>}
       <section data-testid="itinerary-view" className="itinerary-timeline" aria-label="Generated itinerary">
-        {itinerary?.days.map((day) => <DayCard day={day} key={day.id} onActivityCreated={loadTrip} canEdit={canEdit} />)}
+        {previewDraft && mappedPreviewItinerary ? (
+          <div className="preview-overlay" style={{ border: '2px dashed var(--color-brand)', padding: '1rem', borderRadius: '0.75rem', background: 'var(--color-surface-dim)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <div>
+                <h2 style={{ margin: 0, color: 'var(--color-brand)' }}>Preview AI Adjustment</h2>
+                <p style={{ margin: '0.25rem 0 0 0', color: 'var(--color-text-dim)', fontSize: '0.9rem' }}>Review the proposed changes. You can accept this draft or discard it to keep your current itinerary.</p>
+              </div>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button className="button button-secondary" type="button" onClick={() => setPreviewDraft(null)} disabled={isAdjusting}>Discard</button>
+                <button className="button button-primary" type="button" onClick={() => void applyAdjustment()} disabled={isAdjusting}>
+                  {isAdjusting ? <LoaderCircle className="spin" aria-hidden="true" /> : 'Accept Proposal'}
+                </button>
+              </div>
+            </div>
+            {mappedPreviewItinerary.days.map((day) => <DayCard day={day} key={day.id} onActivityCreated={async () => {}} canEdit={false} />)}
+          </div>
+        ) : (
+          itinerary?.days.map((day) => <DayCard day={day} key={day.id} onActivityCreated={loadTrip} canEdit={canEdit} />)
+        )}
       </section>
     </div>
   )

@@ -15,7 +15,7 @@ export function MembersTab() {
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState('viewer')
   const [isInviting, setIsInviting] = useState(false)
-  const canEdit = workspace.current_user_role !== 'viewer'
+  const isOwner = workspace.current_user_role?.toLowerCase() === 'owner'
 
   const loadMembers = useCallback(async () => {
     setIsLoading(true)
@@ -97,7 +97,7 @@ export function MembersTab() {
                   <span className="status-pill" style={{ background: 'var(--color-brand-muted)' }}><Shield size={14} style={{ marginRight: '4px' }} /> Owner</span>
                 ) : (
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    {canEdit ? (
+                    {isOwner ? (
                       <select 
                         value={member.role?.toLowerCase()} 
                         onChange={(e) => void changeRole(member.user_id, e.target.value)}
@@ -109,7 +109,7 @@ export function MembersTab() {
                     ) : (
                       <span className="status-pill">{member.role}</span>
                     )}
-                    {canEdit && (
+                    {isOwner && (
                       <button type="button" onClick={() => void removeMember(member.user_id)} style={{ background: 'transparent', border: 'none', color: 'var(--color-text-dim)', cursor: 'pointer' }}>
                         <Trash2 size={18} />
                       </button>
@@ -121,7 +121,7 @@ export function MembersTab() {
           </ul>
         </div>
         
-        {canEdit && (
+        {isOwner ? (
           <aside style={{ background: 'var(--color-surface-dim)', padding: '1.5rem', borderRadius: '0.5rem', height: 'fit-content' }}>
             <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>Invite a member</h3>
             <form onSubmit={inviteMember} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -140,6 +140,10 @@ export function MembersTab() {
                 {isInviting ? <LoaderCircle className="spin" aria-hidden="true" /> : <UserPlus aria-hidden="true" />} Send Invite
               </button>
             </form>
+          </aside>
+        ) : (
+          <aside style={{ background: 'var(--color-surface-dim)', padding: '1.5rem', borderRadius: '0.5rem', height: 'fit-content' }}>
+            <p style={{ margin: 0, color: 'var(--color-text-dim)', fontSize: '0.9rem' }}>Only Trip Owner can manage member invitations.</p>
           </aside>
         )}
       </div>

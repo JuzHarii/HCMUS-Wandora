@@ -69,10 +69,17 @@ export const workspacesApi = {
     })
   },
   
-  adjustItinerary: (workspaceId: string, payload: { prompt: string }) => {
-    return request<Itinerary>(`/api/v1/workspaces/${workspaceId}/adjust-itinerary`, {
+  previewAdjustment: (workspaceId: string, payload: { prompt: string }) => {
+    return request<ItineraryPreview>(`/api/v1/workspaces/${workspaceId}/adjust-itinerary/preview`, {
       method: 'POST',
       body: JSON.stringify(payload)
+    })
+  },
+
+  applyAdjustment: (workspaceId: string, preview: ItineraryPreview) => {
+    return request<Itinerary>(`/api/v1/workspaces/${workspaceId}/adjust-itinerary/apply`, {
+      method: 'POST',
+      body: JSON.stringify({ source: preview.source, draft: preview.draft })
     })
   }
 }
