@@ -38,7 +38,7 @@ def add_activity(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ItineraryActivityResponse:
-    act = itinerary_service.add_activity(db, payload)
+    act = itinerary_service.add_activity(db, current_user.id, payload)
     return ItineraryActivityResponse.model_validate(act)
 
 
@@ -49,5 +49,5 @@ def update_activity(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ItineraryActivityResponse:
-    act = itinerary_service.update_activity(db, activity_id, payload)
+    act = itinerary_service.update_activity(db, current_user.id, activity_id, payload)
     return ItineraryActivityResponse.model_validate(act)

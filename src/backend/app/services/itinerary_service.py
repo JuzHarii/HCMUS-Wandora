@@ -44,6 +44,17 @@ def parse_date_safe(val: Any) -> date | None:
     return None
 
 
+def _check_can_edit(db: Session, workspace_id: Any, current_user_id: Any) -> None:
+    from app.models.user import WorkspaceMember
+    member = (
+        db.query(WorkspaceMember)
+        .filter(WorkspaceMember.workspace_id == str(workspace_id), WorkspaceMember.user_id == str(current_user_id))
+        .first()
+    )
+    if not member or member.role not in ["owner", "editor"]:
+        raise HTTPException(status_code=403, detail="Action Denied. Viewers cannot modify trip schedules.")
+
+
 def get_itinerary(db: Session, workspace_id: Any) -> dict[str, Any]:
     ws = db.query(Workspace).filter(Workspace.id == str(workspace_id)).first()
     if not ws:
@@ -230,7 +241,7 @@ def _validate_time_overlap(db: Session, day_id: str, new_start: time | None, new
             )
 
 
-def add_activity(db: Session, payload: ItineraryActivityCreate) -> ItineraryActivity:
+def add_activity(db: Session, current_user_id: Any, payload: ItineraryActivityCreate) -> ItineraryActivity:
     day_id = payload.day_id
 
     if not day_id:
@@ -263,6 +274,8 @@ def add_activity(db: Session, payload: ItineraryActivityCreate) -> ItineraryActi
     parsed_end = parse_time_safe(payload.end_time)
     _validate_time_overlap(db, day_id, parsed_start, parsed_end)
 
+    _check_can_edit(db, day_obj.workspace_id, current_user_id)
+
     order_val = payload.order_index or payload.sort_order
 
     activity = ItineraryActivity(
@@ -284,7 +297,7 @@ def add_activity(db: Session, payload: ItineraryActivityCreate) -> ItineraryActi
     return activity
 
 
-def update_activity(db: Session, activity_id: Any, payload: ItineraryActivityUpdate) -> ItineraryActivity:
+def update_activity(db: Session, current_user_id: Any, activity_id: Any, payload: ItineraryActivityUpdate) -> ItineraryActivity:
     act = db.query(ItineraryActivity).filter(ItineraryActivity.id == activity_id).first()
     if not act:
         raise HTTPException(status_code=404, detail="Không tìm thấy hoạt động (Activity not found)")
@@ -296,6 +309,10 @@ def update_activity(db: Session, activity_id: Any, payload: ItineraryActivityUpd
     new_end = parse_time_safe(new_end_raw) if isinstance(new_end_raw, str) else new_end_raw
     
     _validate_time_overlap(db, act.day_id, new_start, new_end, exclude_activity_id=act.id)
+
+    day_obj = db.query(ItineraryDay).filter(ItineraryDay.id == act.day_id).first()
+    if day_obj:
+        _check_can_edit(db, day_obj.workspace_id, current_user_id)
 
     if payload.title is not None:
         act.title = payload.title
@@ -533,8 +550,9 @@ class ItineraryService:
         self.db.refresh(activity)
         return self._to_activity_response(activity)
 
-    def apply_adjusted_itinerary(self, workspace_id: Any, request: ApplyAdjustmentRequest) -> ItineraryResponse:
+    def apply_adjusted_itinerary(self, workspace_id: Any, current_user_id: Any, request: ApplyAdjustmentRequest) -> ItineraryResponse:
         workspace = self._get_workspace(workspace_id)
+        _check_can_edit(self.db, workspace_id, current_user_id)
         self._snapshot_current_itinerary(workspace)
         self._persist_generated_itinerary(workspace_id, request.draft, replace_existing=True)
         self._record_generation(workspace, request.source)

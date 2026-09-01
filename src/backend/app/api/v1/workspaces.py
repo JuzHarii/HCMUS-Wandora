@@ -152,4 +152,4 @@ def apply_itinerary_adjustment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ItineraryResponse:
-    return ItineraryService(db).apply_adjusted_itinerary(workspace_id, payload)
+    return ItineraryService(db).apply_adjusted_itinerary(workspace_id, current_user.id, payload)
