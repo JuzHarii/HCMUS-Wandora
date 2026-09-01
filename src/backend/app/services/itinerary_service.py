@@ -594,9 +594,17 @@ class ItineraryService:
         current = self.get_itinerary(workspace.id)
         if not current.days:
             return
+            
+        current_max_version = self.db.scalar(
+            select(func.max(ItineraryVersion.version_number))
+            .where(ItineraryVersion.workspace_id == workspace.id)
+        )
+        next_version = (current_max_version or 0) + 1
+        
         self.db.add(
             ItineraryVersion(
                 workspace_id=workspace.id,
+                version_number=next_version,
                 generation_source=workspace.itinerary_source,
                 snapshot=current.model_dump(mode="json"),
             )

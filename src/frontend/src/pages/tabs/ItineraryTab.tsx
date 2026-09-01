@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { useOutletContext, useParams } from 'react-router'
-import { ArrowUpRight, CircleAlert, Compass, History, LoaderCircle, RotateCcw, Sparkles } from 'lucide-react'
+import { ArrowUpRight, CircleAlert, Compass, History, LoaderCircle, RotateCcw, Sparkles, MessageCircle, Send, X } from 'lucide-react'
 
 import { workspacesApi, itinerariesApi, activitiesApi, type ActivityComment, type Itinerary, type ItineraryDay, type ItineraryVersion, type Workspace, type Activity, type ItineraryPreview } from '@/lib/api'
 import { formatDateRange, formatDay, formatTime } from '@/lib/trip-formatters'
@@ -275,31 +275,62 @@ function ActivityComments({ activity }: { activity: Activity }) {
   }
 
   if (!isOpen) {
-    return <button type="button" className="recovery-link" style={{ marginTop: '0.5rem', fontSize: '0.85rem' }} onClick={() => setIsOpen(true)}>Discuss</button>
+    return (
+      <button 
+        type="button" 
+        onClick={() => setIsOpen(true)}
+        className="inline-flex items-center gap-1.5 mt-3 text-[0.8rem] font-bold text-[var(--color-brand)] hover:text-[var(--color-brand-hover)] transition-colors cursor-pointer"
+      >
+        <MessageCircle size={14} />
+        <span>Discuss</span>
+      </button>
+    )
   }
 
   return (
-    <div className="activity-comments" style={{ marginTop: '1rem', padding: '1rem', background: 'var(--color-surface-dim)', borderRadius: '0.5rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-        <strong>Discussion</strong>
-        <button type="button" className="recovery-link" onClick={() => setIsOpen(false)}>Close</button>
+    <div className="mt-4 bg-[var(--color-surface)] border border-[var(--color-border-subtle)] rounded-2xl overflow-hidden shadow-sm transition-all">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border-subtle)] bg-[var(--color-sage)]/30">
+        <strong className="text-[0.7rem] font-bold text-[var(--color-ink)] uppercase tracking-wider flex items-center gap-1.5">
+          <MessageCircle size={14} className="text-[var(--color-moss)]" />
+          Discussion
+        </strong>
+        <button 
+          type="button" 
+          onClick={() => setIsOpen(false)}
+          className="text-[var(--color-ink-muted)] hover:text-[var(--color-brand)] transition-colors rounded-full p-1 hover:bg-[var(--color-sage)] cursor-pointer"
+        >
+          <X size={16} />
+        </button>
       </div>
-      <div style={{ maxHeight: '150px', overflowY: 'auto', marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-        {comments.length === 0 ? <p style={{ fontSize: '0.85rem', color: 'var(--color-text-dim)' }}>No comments yet.</p> : comments.map(c => (
-          <div key={c.id} style={{ fontSize: '0.85rem' }}>
-            <strong>{c.user_name || 'Member'}:</strong> {c.content}
-          </div>
-        ))}
+      
+      <div className="max-h-[240px] overflow-y-auto p-4 flex flex-col gap-4">
+        {comments.length === 0 ? (
+          <p className="text-[0.85rem] text-[var(--color-ink-muted)] text-center py-6 italic">No comments yet. Start the conversation!</p>
+        ) : (
+          comments.map(c => (
+            <div key={c.id} className="flex flex-col gap-1">
+              <span className="text-[0.65rem] font-bold uppercase tracking-wide text-[var(--color-moss)] ml-1">{c.user_name || 'Member'}</span>
+              <div className="bg-[var(--color-sage)]/60 px-3 py-2.5 rounded-2xl rounded-tl-sm text-[0.85rem] text-[var(--color-ink)] w-fit max-w-[90%] leading-relaxed shadow-sm">
+                {c.content}
+              </div>
+            </div>
+          ))
+        )}
       </div>
-      <form onSubmit={submit} style={{ display: 'flex', gap: '0.5rem' }}>
+      
+      <form onSubmit={submit} className="flex gap-2 p-3 border-t border-[var(--color-border-subtle)] bg-[var(--color-surface)]">
         <input 
           value={content} 
           onChange={e => setContent(e.target.value)} 
-          placeholder="Add a comment..." 
-          style={{ flex: 1, padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--color-border)', fontSize: '0.85rem' }} 
+          placeholder="Type a message..." 
+          className="flex-1 px-4 py-2 rounded-full border border-[var(--color-border-subtle)] text-[0.85rem] text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-brand)] focus:ring-1 focus:ring-[var(--color-brand)] bg-white transition-all"
         />
-        <button type="submit" disabled={isLoading || !content.trim()} style={{ padding: '0.5rem 1rem', background: 'var(--color-brand)', color: 'white', border: 'none', borderRadius: '4px', fontSize: '0.85rem', cursor: 'pointer' }}>
-          Send
+        <button 
+          type="submit" 
+          disabled={isLoading || !content.trim()} 
+          className="flex items-center justify-center w-9 h-9 rounded-full bg-[var(--color-brand)] text-white hover:bg-[var(--color-brand-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+        >
+          {isLoading ? <LoaderCircle size={16} className="spin" /> : <Send size={14} className="ml-0.5" />}
         </button>
       </form>
     </div>
