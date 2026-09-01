@@ -37,7 +37,7 @@ def invite_member(db: Session, workspace_id: Any, email: str, role: str = "membe
         .first()
     )
     if existing_member:
-        raise HTTPException(status_code=400, detail="Người dùng đã là thành viên của workspace này")
+        raise HTTPException(status_code=400, detail="This user is already a member of this trip.")
 
     member = WorkspaceMember(workspace_id=str(workspace_id), user_id=user.id, role=role)
     db.add(member)
