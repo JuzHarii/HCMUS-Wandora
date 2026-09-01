@@ -32,6 +32,7 @@ function App() {
             <Route path="members" element={<MembersTab />} />
             <Route path="reviews" element={<ReviewsTab />} />
             <Route path="share" element={<ShareTab />} />
+            <Route path="*" element={<Navigate to="itinerary" replace />} />
           </Route>
           <Route path="*" element={<Navigate replace to="/" />} />
         </Routes>

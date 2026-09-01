@@ -71,6 +71,94 @@ export function MembersTab() {
 
   return (
     <div className="workspace-view">
+      <style>{`
+        .bento-card {
+          background: var(--color-surface);
+          border-radius: 1rem;
+          padding: 1.25rem 1.5rem;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+          border: 1px solid var(--color-border);
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+          display: flex;
+          align-items: center;
+          gap: 1.25rem;
+        }
+        .bento-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+        }
+        .bento-input {
+          padding: 0.65rem 0.75rem;
+          border-radius: 0.5rem;
+          border: 1px solid var(--color-border);
+          background-color: var(--color-surface-dim);
+          transition: box-shadow 0.2s ease, border-color 0.2s ease;
+          font-family: inherit;
+          font-size: 0.95rem;
+          color: var(--color-text);
+        }
+        .bento-input:focus {
+          outline: none;
+          box-shadow: 0 0 0 2px var(--color-brand);
+          border-color: transparent;
+        }
+        .bento-sidebar {
+          background: var(--color-surface);
+          padding: 1.75rem;
+          border-radius: 1rem;
+          height: fit-content;
+          position: sticky;
+          top: 2rem;
+          box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.05);
+          border: 1px solid var(--color-border);
+        }
+        .avatar-circle {
+          width: 44px;
+          height: 44px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, var(--color-brand) 0%, #a855f7 100%);
+          color: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 600;
+          font-size: 1.1rem;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          flex-shrink: 0;
+        }
+        .role-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.25rem;
+          padding: 0.25rem 0.75rem;
+          border-radius: 9999px;
+          font-size: 0.8rem;
+          font-weight: 600;
+          background: var(--color-surface-dim);
+          color: var(--color-text);
+          border: 1px solid var(--color-border);
+        }
+        .role-pill.owner {
+          background: var(--color-brand-muted);
+          color: var(--color-brand);
+          border-color: var(--color-brand-muted);
+        }
+        .action-btn {
+          opacity: 0.4;
+          transition: opacity 0.2s ease, color 0.2s ease;
+          cursor: pointer;
+          background: transparent;
+          border: none;
+          color: var(--color-destructive, #ef4444);
+          padding: 0.5rem;
+          border-radius: 0.375rem;
+        }
+        .action-btn:hover {
+          opacity: 1;
+          background: var(--color-surface-dim);
+        }
+      `}</style>
+
       <header className="workspace-view-header">
         <div>
           <h2>Members & Roles</h2>
@@ -80,37 +168,38 @@ export function MembersTab() {
       
       {error && <div className="inline-error" role="alert"><CircleAlert aria-hidden="true" /><span>{error}</span></div>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '2rem', marginTop: '2rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '2.5rem', marginTop: '2rem' }}>
         <div className="members-list">
-          <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {members.map(member => (
-              <li key={member.user_id} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', background: 'var(--color-surface-dim)', borderRadius: '0.5rem' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--color-brand)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+              <li key={member.user_id} className="bento-card">
+                <div className="avatar-circle">
                   {member.user_full_name?.charAt(0).toUpperCase() || member.user_email?.charAt(0).toUpperCase() || '?'}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <strong>{member.user_full_name || 'Unknown User'}</strong>
-                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--color-text-dim)' }}>{member.user_email}</p>
+                  <strong style={{ fontSize: '1.1rem', display: 'block', marginBottom: '0.1rem', color: 'var(--color-text)' }}>{member.user_full_name || 'Unknown User'}</strong>
+                  <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-text-dim)' }}>{member.user_email}</p>
                 </div>
                 
                 {member.role?.toLowerCase() === 'owner' ? (
-                  <span className="status-pill" style={{ background: 'var(--color-brand-muted)' }}><Shield size={14} style={{ marginRight: '4px' }} /> Owner</span>
+                  <span className="role-pill owner"><Shield size={14} /> Owner</span>
                 ) : (
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
                     {isOwner ? (
                       <select 
                         value={member.role?.toLowerCase()} 
                         onChange={(e) => void changeRole(member.user_id, e.target.value)}
-                        style={{ padding: '0.25rem', borderRadius: '4px', border: '1px solid var(--color-border)', fontSize: '0.85rem' }}
+                        className="bento-input"
+                        style={{ padding: '0.4rem 0.75rem', fontSize: '0.85rem' }}
                       >
                         <option value="editor">Editor</option>
                         <option value="viewer">Viewer</option>
                       </select>
                     ) : (
-                      <span className="status-pill">{member.role}</span>
+                      <span className="role-pill">{member.role}</span>
                     )}
                     {isOwner && (
-                      <button type="button" onClick={() => void removeMember(member.user_id)} style={{ background: 'transparent', border: 'none', color: 'var(--color-text-dim)', cursor: 'pointer' }}>
+                      <button type="button" onClick={() => void removeMember(member.user_id)} className="action-btn" title="Remove member">
                         <Trash2 size={18} />
                       </button>
                     )}
@@ -122,28 +211,31 @@ export function MembersTab() {
         </div>
         
         {isOwner ? (
-          <aside style={{ background: 'var(--color-surface-dim)', padding: '1.5rem', borderRadius: '0.5rem', height: 'fit-content' }}>
-            <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>Invite a member</h3>
-            <form onSubmit={inviteMember} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.85rem' }}>
+          <aside className="bento-sidebar">
+            <h3 style={{ margin: '0 0 1.5rem 0', fontSize: '1.25rem', fontWeight: 600 }}>Invite a member</h3>
+            <form onSubmit={inviteMember} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>
                 Email address
-                <input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} required style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--color-border)' }} />
+                <input type="email" className="bento-input" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} required placeholder="colleague@example.com" />
               </label>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.85rem' }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>
                 Role
-                <select value={inviteRole} onChange={e => setInviteRole(e.target.value)} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--color-border)' }}>
+                <select className="bento-input" value={inviteRole} onChange={e => setInviteRole(e.target.value)}>
                   <option value="editor">Editor (Can edit itinerary)</option>
                   <option value="viewer">Viewer (Read-only & vote)</option>
                 </select>
               </label>
-              <button className="button button-primary" type="submit" disabled={isInviting || !inviteEmail.trim()} style={{ marginTop: '0.5rem' }}>
-                {isInviting ? <LoaderCircle className="spin" aria-hidden="true" /> : <UserPlus aria-hidden="true" />} Send Invite
+              <button className="button button-primary" type="submit" disabled={isInviting || !inviteEmail.trim()} style={{ marginTop: '0.5rem', padding: '0.75rem', borderRadius: '0.5rem' }}>
+                {isInviting ? <LoaderCircle className="spin" aria-hidden="true" /> : <UserPlus aria-hidden="true" size={18} />} Send Invite
               </button>
             </form>
           </aside>
         ) : (
-          <aside style={{ background: 'var(--color-surface-dim)', padding: '1.5rem', borderRadius: '0.5rem', height: 'fit-content' }}>
-            <p style={{ margin: 0, color: 'var(--color-text-dim)', fontSize: '0.9rem' }}>Only Trip Owner can manage member invitations.</p>
+          <aside className="bento-sidebar" style={{ background: 'var(--color-surface-dim)', boxShadow: 'none', border: '1px dashed var(--color-border)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '1rem', padding: '1rem 0' }}>
+              <Shield size={32} color="var(--color-text-dim)" strokeWidth={1.5} />
+              <p style={{ margin: 0, color: 'var(--color-text-dim)', fontSize: '0.95rem' }}>Only Trip Owner can manage member invitations.</p>
+            </div>
           </aside>
         )}
       </div>
