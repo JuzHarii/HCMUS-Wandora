@@ -4,7 +4,7 @@ import { CircleAlert, Download, Link as LinkIcon, LoaderCircle, Users } from 'lu
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
-import { itinerariesApi, type Workspace } from '@/lib/api'
+import { itinerariesApi, packingApi, collaborationApi, type Workspace } from '@/lib/api'
 
 export function ShareTab() {
   const { workspace } = useOutletContext<{ workspace: Workspace }>()
@@ -17,9 +17,11 @@ export function ShareTab() {
     setIsExporting(true)
     setExportError('')
     try {
-      // 1. Fetch itinerary data & Font simultaneously
-      const [itinerary, fontResponse] = await Promise.all([
+      // 1. Fetch itinerary data, packing, members & Font simultaneously
+      const [itinerary, packingItems, members, fontResponse] = await Promise.all([
         itinerariesApi.getItinerary(workspaceId),
+        packingApi.listItems(workspaceId),
+        collaborationApi.listMembers(workspaceId),
         fetch('/Roboto-Regular.ttf')
       ])
       
@@ -117,6 +119,72 @@ export function ShareTab() {
             currentY = 20
           }
         }
+      }
+
+      // 5. Add Members Section
+      if (currentY > 240) { doc.addPage(); currentY = 20; }
+      doc.setFontSize(16)
+      doc.setTextColor(0)
+      doc.text('Trip Members', 14, currentY)
+      currentY += 10
+
+      if (members && members.length > 0) {
+        const membersData = members.map(m => [
+          m.user_full_name || m.user_email || 'Unknown',
+          m.role,
+          m.user_email || ''
+        ])
+        autoTable(doc, {
+          startY: currentY,
+          head: [['Name', 'Role', 'Email']],
+          body: membersData,
+          theme: 'striped',
+          headStyles: { fillColor: [41, 128, 185] },
+          margin: { left: 14, right: 14 },
+          styles: { font: 'Roboto', fontSize: 10, cellPadding: 4 }
+        })
+        // @ts-expect-error jsPDF-autotable adds lastAutoTable to doc
+        currentY = doc.lastAutoTable.finalY + 15
+      } else {
+        doc.setFontSize(10)
+        doc.setTextColor(150)
+        doc.text('No members found.', 14, currentY)
+        currentY += 15
+      }
+
+      // 6. Add Packing List Section
+      if (currentY > 240) { doc.addPage(); currentY = 20; }
+      doc.setFontSize(16)
+      doc.setTextColor(0)
+      doc.text('Group Packing List', 14, currentY)
+      currentY += 10
+
+      if (packingItems && packingItems.length > 0) {
+        const packingData = packingItems.map(item => {
+          const assignment = item.assignments?.[0]
+          const isChecked = assignment?.is_checked ? 'Yes' : 'No'
+          const assigneeId = assignment?.user_id
+          const assigneeName = assigneeId ? members.find(m => m.user_id === assigneeId)?.user_full_name || members.find(m => m.user_id === assigneeId)?.user_email || 'Assigned' : 'Unassigned'
+          return [
+            item.name,
+            item.category || '',
+            assigneeName,
+            isChecked
+          ]
+        })
+        autoTable(doc, {
+          startY: currentY,
+          head: [['Item', 'Category', 'Assigned To', 'Completed']],
+          body: packingData,
+          theme: 'striped',
+          headStyles: { fillColor: [41, 128, 185] },
+          margin: { left: 14, right: 14 },
+          styles: { font: 'Roboto', fontSize: 10, cellPadding: 4 }
+        })
+      } else {
+        doc.setFontSize(10)
+        doc.setTextColor(150)
+        doc.text('No packing items found.', 14, currentY)
       }
 
       // 5. Save the PDF

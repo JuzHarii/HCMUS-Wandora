@@ -156,8 +156,7 @@ export function PackingTab() {
           height: 24px;
           border-radius: 50%;
           border: 2px solid var(--color-text-dim);
-          opacity: 0.5;
-          background: transparent;
+          background: var(--color-surface);
           color: white;
           display: flex;
           align-items: center;
@@ -165,6 +164,7 @@ export function PackingTab() {
           cursor: pointer;
           transition: all 0.2s ease;
           flex-shrink: 0;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.05) inset;
         }
         .checkbox-btn.checked {
           background: var(--color-brand);
@@ -230,52 +230,112 @@ export function PackingTab() {
             </div>
           </div>
         ) : (
-          <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%', alignItems: 'stretch' }}>
-            {items.map(item => {
-              const assignment = item.assignments?.[0]
-              const isChecked = assignment ? assignment.is_checked : false
-              const assigneeId = assignment ? String(assignment.user_id) : ''
-              
-              return (
-                <li key={item.id} className="packing-row">
-                  <button 
-                    type="button" 
-                    onClick={() => void toggleItem(item)}
-                    className={`checkbox-btn ${isChecked ? 'checked' : ''}`}
-                    title={isChecked ? "Mark as uncompleted" : "Mark as completed"}
-                  >
-                    {isChecked && <Check size={14} strokeWidth={3} />}
-                  </button>
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '1.05rem', textDecoration: isChecked ? 'line-through' : 'none', color: isChecked ? 'var(--color-text-dim)' : 'var(--color-text)', transition: 'color 0.2s ease', fontWeight: isChecked ? 400 : 500 }}>
-                      {item.name}
-                    </span>
-                    {item.category && (
-                      <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.2rem 0.5rem', borderRadius: '4px', background: 'var(--color-surface-dim)', color: 'var(--color-text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        {item.category}
-                      </span>
-                    )}
-                  </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', width: '100%' }}>
+            {/* Active Items */}
+            {items.filter(i => !i.assignments?.[0]?.is_checked).length > 0 && (
+              <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%', alignItems: 'stretch' }}>
+                {items.filter(i => !i.assignments?.[0]?.is_checked).map(item => {
+                  const assignment = item.assignments?.[0]
+                  const isChecked = false
+                  const assigneeId = assignment ? String(assignment.user_id) : ''
                   
-                  <select 
-                    value={assigneeId} 
-                    onChange={(e) => void assignItem(item.id, e.target.value || null)}
-                    className="assign-select"
-                    title="Assign to a member"
-                  >
-                    <option value="">Unassigned</option>
-                    {members.map(m => (
-                      <option key={m.user_id} value={m.user_id}>{m.user_full_name || m.user_email || 'Unknown User'}</option>
-                    ))}
-                  </select>
-                  
-                  <button type="button" onClick={() => void deleteItem(item.id)} className="action-btn" title="Delete item">
-                    <Trash2 size={18} />
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
+                  return (
+                    <li key={item.id} className="packing-row">
+                      <button 
+                        type="button" 
+                        onClick={() => void toggleItem(item)}
+                        className={`checkbox-btn ${isChecked ? 'checked' : ''}`}
+                        title={isChecked ? "Mark as uncompleted" : "Mark as completed"}
+                      >
+                        {isChecked && <Check size={14} strokeWidth={3} />}
+                      </button>
+                      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '1.05rem', textDecoration: isChecked ? 'line-through' : 'none', color: isChecked ? 'var(--color-text-dim)' : 'var(--color-text)', transition: 'color 0.2s ease', fontWeight: isChecked ? 400 : 500 }}>
+                          {item.name}
+                        </span>
+                        {item.category && (
+                          <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.2rem 0.5rem', borderRadius: '4px', background: 'var(--color-surface-dim)', color: 'var(--color-text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            {item.category}
+                          </span>
+                        )}
+                      </div>
+                      
+                      <select 
+                        value={assigneeId} 
+                        onChange={(e) => void assignItem(item.id, e.target.value || null)}
+                        className="assign-select"
+                        title="Assign to a member"
+                      >
+                        <option value="">Unassigned</option>
+                        {members.map(m => (
+                          <option key={m.user_id} value={m.user_id}>{m.user_full_name || m.user_email || 'Unknown User'}</option>
+                        ))}
+                      </select>
+                      
+                      <button type="button" onClick={() => void deleteItem(item.id)} className="action-btn" title="Delete item">
+                        <Trash2 size={18} />
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+
+            {/* Completed Items */}
+            {items.filter(i => i.assignments?.[0]?.is_checked).length > 0 && (
+              <div>
+                <h3 style={{ fontSize: '1rem', color: 'var(--color-text-dim)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  Completed ({items.filter(i => i.assignments?.[0]?.is_checked).length})
+                </h3>
+                <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%', alignItems: 'stretch' }}>
+                  {items.filter(i => i.assignments?.[0]?.is_checked).map(item => {
+                    const assignment = item.assignments?.[0]
+                    const isChecked = true
+                    const assigneeId = assignment ? String(assignment.user_id) : ''
+                    
+                    return (
+                      <li key={item.id} className="packing-row" style={{ opacity: 0.7 }}>
+                        <button 
+                          type="button" 
+                          onClick={() => void toggleItem(item)}
+                          className={`checkbox-btn ${isChecked ? 'checked' : ''}`}
+                          title={isChecked ? "Mark as uncompleted" : "Mark as completed"}
+                        >
+                          {isChecked && <Check size={14} strokeWidth={3} />}
+                        </button>
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ fontSize: '1.05rem', textDecoration: isChecked ? 'line-through' : 'none', color: isChecked ? 'var(--color-text-dim)' : 'var(--color-text)', transition: 'color 0.2s ease', fontWeight: isChecked ? 400 : 500 }}>
+                            {item.name}
+                          </span>
+                          {item.category && (
+                            <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.2rem 0.5rem', borderRadius: '4px', background: 'var(--color-surface-dim)', color: 'var(--color-text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              {item.category}
+                            </span>
+                          )}
+                        </div>
+                        
+                        <select 
+                          value={assigneeId} 
+                          onChange={(e) => void assignItem(item.id, e.target.value || null)}
+                          className="assign-select"
+                          title="Assign to a member"
+                        >
+                          <option value="">Unassigned</option>
+                          {members.map(m => (
+                            <option key={m.user_id} value={m.user_id}>{m.user_full_name || m.user_email || 'Unknown User'}</option>
+                          ))}
+                        </select>
+                        
+                        <button type="button" onClick={() => void deleteItem(item.id)} className="action-btn" title="Delete item">
+                          <Trash2 size={18} />
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>
