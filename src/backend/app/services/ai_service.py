@@ -1,4 +1,4 @@
-"""Gemini integration and deterministic itinerary fallback."""
+"""OpenAI integration and deterministic itinerary fallback."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from app.schemas.itinerary import GeneratedItineraryPayload
 
 logger = logging.getLogger(__name__)
 
-GenerationSource = Literal["gemini", "fallback"]
+GenerationSource = Literal["openai", "fallback"]
 
 
 @dataclass(frozen=True)
@@ -169,6 +169,10 @@ def _build_prompt(
 Hãy tạo/cập nhật lịch trình chi tiết cho chuyến đi {dest} trong {num_days} ngày.
 Sở thích / Yêu cầu: {pref_str}{existing_str}{adjust_str}
 
+QUAN TRỌNG:
+1. ĐỊA ĐIỂM CỤ THỂ: BẮT BUỘC chỉ được gợi ý các địa điểm, quán ăn, điểm tham quan CỤ THỂ và CÓ THẬT (VD: "Bánh Khọt Gốc Vú Sữa", "Bảo tàng Chứng tích Chiến tranh"). Tuyệt đối KHÔNG sử dụng các cụm từ chung chung như "Thưởng thức ẩm thực địa phương", "Ăn sáng địa phương", "Tham quan điểm nổi tiếng".
+2. GOOGLE MAPS LINK: Thuộc tính `external_url` PHẢI là link tìm kiếm Google Maps chính xác của địa điểm đó (VD: "https://www.google.com/maps/search/?api=1&query=Tên+Địa+Điểm").
+
 BẮT BUỘC trả về định dạng JSON thuần túy (không dùng markdown block, không giải thích thêm) theo đúng cấu trúc sau:
 {{
   "days": [
@@ -192,7 +196,7 @@ BẮT BUỘC trả về định dạng JSON thuần túy (không dùng markdown 
 """
 
 
-async def _generate_with_gemini(
+async def _generate_with_openai(
     destination: str | None,
     start_date: date | None,
     end_date: date | None,
@@ -201,32 +205,40 @@ async def _generate_with_gemini(
     existing_itinerary: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]] | None:
     settings = get_settings()
-    if not settings.gemini_api_key:
+    if not settings.openai_api_key:
         return None
 
     prompt = _build_prompt(destination, start_date, end_date, preferences, adjustment_instruction, existing_itinerary)
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model}:generateContent?key={settings.gemini_api_key}"
+    url = "https://api.openai.com/v1/chat/completions"
 
     payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.7, "response_mime_type": "application/json"},
+        "model": settings.openai_model,
+        "messages": [
+            {"role": "system", "content": "You are a helpful travel planning assistant that responds in JSON."},
+            {"role": "user", "content": prompt}
+        ],
+        "response_format": {"type": "json_object"},
+        "temperature": 0.7,
+    }
+    headers = {
+        "Authorization": f"Bearer {settings.openai_api_key}",
+        "Content-Type": "application/json"
     }
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(url, json=payload)
+            response = await client.post(url, json=payload, headers=headers)
             if response.status_code == 200:
                 data = response.json()
-                candidates = data.get("candidates", [])
-                if candidates:
-                    parts = candidates[0].get("content", {}).get("parts", [])
-                    if parts:
-                        text_res = parts[0].get("text", "")
-                        parsed = _safe_parse_json(text_res)
-                        if isinstance(parsed, dict) and "days" in parsed:
-                            return parsed["days"]
+                content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                if content:
+                    parsed = _safe_parse_json(content)
+                    if isinstance(parsed, dict) and "days" in parsed:
+                        return parsed["days"]
+            else:
+                logger.error(f"OpenAI API Error: {response.status_code} - {response.text}")
     except Exception as e:
-        logger.warning(f"Lỗi kết nối Gemini API: {e}. Kích hoạt chế độ dự phòng.")
+        logger.warning(f"Lỗi kết nối OpenAI API: {e}. Kích hoạt chế độ dự phòng.")
 
     return None
 
@@ -239,7 +251,7 @@ async def generate_itinerary_draft(
     adjustment_instruction: str | None = None,
     existing_itinerary: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
-    ai_result = await _generate_with_gemini(
+    ai_result = await _generate_with_openai(
         destination, start_date, end_date, preferences, adjustment_instruction, existing_itinerary
     )
     if ai_result:
@@ -264,7 +276,7 @@ async def generate_packing_suggestions(
     preferences: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     settings = get_settings()
-    if not settings.gemini_api_key:
+    if not settings.openai_api_key:
         return _fallback_packing_suggestions(destination)
 
     dest = destination or "Điểm du lịch"
@@ -285,63 +297,82 @@ BẮT BUỘC trả về định dạng JSON array thuần túy theo đúng cấu
 ]
 """
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model}:generateContent?key={settings.gemini_api_key}"
+    url = "https://api.openai.com/v1/chat/completions"
     payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.7, "response_mime_type": "application/json"},
+        "model": settings.openai_model,
+        "messages": [
+            {"role": "system", "content": "You are a helpful travel planning assistant that responds in JSON."},
+            {"role": "user", "content": prompt}
+        ],
+        "response_format": {"type": "json_object"}
+    }
+    headers = {
+        "Authorization": f"Bearer {settings.openai_api_key}",
+        "Content-Type": "application/json"
     }
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(url, json=payload)
+            response = await client.post(url, json=payload, headers=headers)
             if response.status_code == 200:
                 data = response.json()
-                candidates = data.get("candidates", [])
-                if candidates:
-                    parts = candidates[0].get("content", {}).get("parts", [])
-                    if parts:
-                        text_res = parts[0].get("text", "")
-                        parsed = _safe_parse_json(text_res)
-                        if isinstance(parsed, list) and len(parsed) > 0:
-                            return parsed
+                content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                if content:
+                    parsed = _safe_parse_json(content)
+                    if isinstance(parsed, dict) and "items" in parsed: # If the array was wrapped
+                        return parsed["items"]
+                    if isinstance(parsed, list) and len(parsed) > 0:
+                        return parsed
     except Exception as e:
-        logger.warning(f"Lỗi gọi Gemini API sinh hành lý: {e}. Chuyển sang fallback.")
+        logger.warning(f"Lỗi gọi OpenAI API sinh hành lý: {e}. Chuyển sang fallback.")
 
     return _fallback_packing_suggestions(destination)
 
 
 class AIService:
-    """Create structured itinerary drafts through Gemini, with a safe fallback."""
+    """Create structured itinerary drafts through OpenAI, with a safe fallback."""
 
     def __init__(self) -> None:
         self.settings = get_settings()
 
     def generate_itinerary_draft(self, workspace: dict[str, object], instruction: str | None = None) -> GenerationResult:
-        if self.settings.gemini_api_key:
-            draft = self._generate_with_gemini(workspace, instruction)
+        if self.settings.openai_api_key:
+            draft = self._generate_with_openai(workspace, instruction)
             if draft is not None:
-                return GenerationResult(draft=draft, source="gemini")
+                return GenerationResult(draft=draft, source="openai")
         return GenerationResult(draft=self._fallback_draft(workspace, instruction), source="fallback")
 
-    def _generate_with_gemini(self, workspace: dict[str, object], instruction: str | None) -> GeneratedItineraryPayload | None:
+    def _generate_with_openai(self, workspace: dict[str, object], instruction: str | None) -> GeneratedItineraryPayload | None:
         try:
-            from google import genai
-            from google.genai import types
-
-            client = genai.Client(api_key=self.settings.gemini_api_key)
-            response = client.models.generate_content(
-                model=self.settings.gemini_model,
-                contents=self._build_prompt(workspace, instruction),
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=GeneratedItineraryPayload,
-                    http_options=types.HttpOptions(timeout=self.settings.gemini_timeout_seconds * 1000),
-                ),
-            )
-            draft = GeneratedItineraryPayload.model_validate(json.loads(getattr(response, "text", None) or ""))
-            return draft
+            url = "https://api.openai.com/v1/chat/completions"
+            payload = {
+                "model": self.settings.openai_model,
+                "messages": [
+                    {"role": "system", "content": self._build_prompt(workspace, instruction)}
+                ],
+                "response_format": {"type": "json_object"},
+                "temperature": 0.7,
+            }
+            headers = {
+                "Authorization": f"Bearer {self.settings.openai_api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            # Using httpx synchronously since this method is called from synchronous code
+            with httpx.Client(timeout=30.0) as client:
+                response = client.post(url, json=payload, headers=headers)
+                if response.status_code == 200:
+                    data = response.json()
+                    content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                    if content:
+                        parsed = _safe_parse_json(content)
+                        return GeneratedItineraryPayload.model_validate(parsed)
+                else:
+                    logger.error(f"OpenAI API Error: {response.status_code} - {response.text}")
+                    
+            return None
         except Exception as exc:
-            logger.warning("Gemini itinerary generation failed; using fallback. error=%s", type(exc).__name__)
+            logger.warning("OpenAI itinerary generation failed; using fallback. error=%s", type(exc).__name__)
             return None
 
     def _fallback_draft(self, workspace: dict[str, object], instruction: str | None) -> GeneratedItineraryPayload:
@@ -354,7 +385,7 @@ class AIService:
                     "day_index": day_index,
                     "title": f"Explore {destination} — Day {day_index}",
                     "summary": "A flexible, saved starting point for your group." if not instruction else f"Adjusted for: {instruction}",
-                    "travel_date": travel_date,
+                    "travel_date": travel_date.isoformat() if travel_date else None,
                     "activities": self._fallback_activities(destination, day_index, instruction),
                 }
             )
@@ -402,4 +433,33 @@ class AIService:
             "workspace": workspace,
             "instruction": instruction,
         }
-        return json.dumps(payload, ensure_ascii=False, indent=2, default=str)
+        
+        system_instruction = """
+Bạn là chuyên gia tư vấn du lịch thông minh Wandora. Dưới đây là thông tin chuyến đi dạng JSON.
+QUAN TRỌNG:
+1. ĐỊA ĐIỂM CỤ THỂ: BẮT BUỘC chỉ được gợi ý các địa điểm, quán ăn, điểm tham quan CỤ THỂ và CÓ THẬT (VD: "Bánh Khọt Gốc Vú Sữa", "Bảo tàng Chứng tích Chiến tranh"). Tuyệt đối KHÔNG sử dụng các cụm từ chung chung như "Thưởng thức ẩm thực địa phương", "Ăn sáng địa phương", "Tham quan điểm nổi tiếng".
+2. GOOGLE MAPS LINK: Thuộc tính `external_url` PHẢI là link tìm kiếm Google Maps chính xác của địa điểm đó (VD: "https://www.google.com/maps/search/?api=1&query=Tên+Địa+Điểm").
+
+BẮT BUỘC trả về định dạng JSON theo đúng cấu trúc sau:
+{
+  "days": [
+    {
+      "day_index": 1,
+      "title": "Ngày 1: Tiêu đề",
+      "summary": "Tóm tắt ngắn gọn",
+      "travel_date": "2024-01-01",
+      "activities": [
+        {
+          "title": "Tên hoạt động",
+          "start_time": "08:00",
+          "end_time": "10:00",
+          "location_name": "Tên địa điểm",
+          "notes": "Ghi chú hoạt động",
+          "external_url": "https://www.google.com/maps/search/?api=1&query=..."
+        }
+      ]
+    }
+  ]
+}
+"""
+        return system_instruction + "\nJSON INPUT:\n" + json.dumps(payload, ensure_ascii=False, indent=2, default=str)

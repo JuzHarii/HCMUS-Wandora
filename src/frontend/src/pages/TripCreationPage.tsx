@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router'
 
 import { FormField } from '@/components/forms/FormField'
 import { WorkspaceShell } from '@/components/layout/WorkspaceShell'
-import { createWorkspace, previewItinerary, saveItineraryDraft, type CreateWorkspaceInput, type GeneratedItineraryDay, type ItineraryPreview, type Workspace } from '@/lib/api'
+import { workspacesApi, tripsApi, type CreateWorkspaceInput, type GeneratedItineraryDay, type ItineraryPreview, type Workspace } from '@/lib/api'
 import { formatDay } from '@/lib/trip-formatters'
 
 type Step = 'invitation' | 'details' | 'review'
@@ -40,6 +40,8 @@ export function TripCreationPage() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [apiError, setApiError] = useState('')
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null)
+  const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false)
   const [savedWorkspace, setSavedWorkspace] = useState<Workspace | null>(null)
 
   const stepIndex = STEPS.findIndex((item) => item.key === step)
@@ -63,16 +65,33 @@ export function TripCreationPage() {
     return Object.keys(nextErrors).length === 0
   }
 
-  function nextStep() {
+  async function nextStep() {
     if (step === 'invitation') return setStep('details')
-    if (step === 'details' && validateDetails()) setStep('review')
+    if (step === 'details' && validateDetails()) {
+      if (!duplicateWarning) {
+        setIsCheckingDuplicates(true)
+        try {
+          const res = await tripsApi.checkDuplicates(tripInput)
+          if (res.has_duplicate) {
+            setDuplicateWarning('Warning: You have a trip with similar destination or dates. Are you sure you want to create a new one?')
+            return
+          }
+        } catch (e) {
+          // Ignore if API fails
+        } finally {
+          setIsCheckingDuplicates(false)
+        }
+      }
+      setDuplicateWarning(null)
+      setStep('review')
+    }
   }
 
   async function generatePreview() {
     setIsGenerating(true)
     setApiError('')
     try {
-      setPreview(await previewItinerary(tripInput))
+      setPreview(await workspacesApi.previewItinerary(tripInput))
     } catch (error) {
       setApiError(error instanceof Error ? error.message : 'Could not generate the itinerary draft.')
     } finally {
@@ -93,8 +112,8 @@ export function TripCreationPage() {
     setIsSaving(true)
     setApiError('')
     try {
-      const workspace = await createWorkspace(tripInput)
-      await saveItineraryDraft(workspace.id, preview)
+      const workspace = await workspacesApi.createWorkspace(tripInput)
+      await workspacesApi.saveItineraryDraft(workspace.id, preview)
       setSavedWorkspace(workspace)
     } catch (error) {
       setApiError(error instanceof Error ? error.message : 'Could not save this trip.')
@@ -112,8 +131,8 @@ export function TripCreationPage() {
       <div className="workspace-view wizard-view">
         <header className="workspace-view-header"><div><p className="dashboard-kicker">New shared plan</p><h1>Shape the trip together.</h1></div><Link className="workspace-back-link" to="/home"><ChevronLeft aria-hidden="true" /> My trips</Link></header>
         <ol className="trip-wizard-progress" aria-label="Create trip progress">{STEPS.map((item, index) => <li key={item.key} className={index < stepIndex ? 'is-complete' : index === stepIndex ? 'is-active' : ''}><span>{index < stepIndex ? <Check aria-hidden="true" /> : `0${index + 1}`}</span><div><strong>{item.label}</strong><small>{item.caption}</small></div></li>)}</ol>
-        {step === 'invitation' && <InvitationStep onContinue={nextStep} />}
-        {step === 'details' && <DetailsStep form={form} errors={errors} onChange={updateField} onBack={() => setStep('invitation')} onContinue={nextStep} />}
+        {step === 'invitation' && <InvitationStep onContinue={() => void nextStep()} />}
+        {step === 'details' && <DetailsStep form={form} errors={errors} duplicateWarning={duplicateWarning} isCheckingDuplicates={isCheckingDuplicates} onChange={updateField} onBack={() => setStep('invitation')} onContinue={() => void nextStep()} />}
         {step === 'review' && <ReviewStep input={tripInput} preview={preview} isGenerating={isGenerating} isSaving={isSaving} error={apiError} onBack={() => setStep('details')} onGenerate={() => void generatePreview()} onSave={() => void saveTrip()} onUpdateDay={updateDraftDay} onUpdateActivity={updateDraftActivity} />}
       </div>
     </WorkspaceShell>
@@ -124,8 +143,8 @@ function InvitationStep({ onContinue }: { onContinue: () => void }) {
   return <section className="wizard-stage invitation-stage"><div className="wizard-stage-intro"><p className="eyebrow"><UsersRound aria-hidden="true" /> Share from the start</p><h2>Who is planning this trip with you?</h2><p>Trip invitations will be added in the next iteration. For now, start the plan and invite teammates after the shared workspace is ready.</p><span className="wizard-note">You can skip this step without losing any trip details.</span></div><div className="wizard-panel invitation-placeholder"><span><UsersRound aria-hidden="true" /></span><h3>Invitations are coming next</h3><p>This plan stays private to you while you choose the route and preferences.</p><div className="wizard-actions"><button data-testid="trip-invitation-continue" className="dashboard-create-button" type="button" onClick={onContinue}>Continue to details <ArrowRight aria-hidden="true" /></button></div></div></section>
 }
 
-function DetailsStep({ form, errors, onChange, onBack, onContinue }: { form: TripFormValues; errors: Partial<Record<'destination' | 'start_date' | 'end_date' | 'group_size' | 'budget', string>>; onChange: <K extends keyof TripFormValues>(field: K, value: TripFormValues[K]) => void; onBack: () => void; onContinue: () => void }) {
-  return <section className="wizard-stage details-stage"><div className="wizard-stage-intro"><p className="eyebrow"><MapPinned aria-hidden="true" /> Trip details</p><h2>Give Wandora the shape of your journey.</h2><p>Choose the timing and priorities the first draft should protect. These preferences stay visible when your group reviews the route.</p></div><div data-testid="trip-creation-form" className="wizard-panel"><div className="trip-form-grid"><FormField label="Destination *" error={errors.destination}><input data-testid="trip-destination" value={form.destination} onChange={(event) => onChange('destination', event.target.value)} placeholder="e.g. Da Nang, Hoi An & Hue" /></FormField><FormField label="Budget (optional)" error={errors.budget}><input data-testid="trip-budget" type="number" min="0" step="1" value={form.budget} onChange={(event) => onChange('budget', event.target.value)} placeholder="Amount for the group" /></FormField><FormField label="Start date *" error={errors.start_date}><input data-testid="trip-start-date" type="date" value={form.start_date} onChange={(event) => onChange('start_date', event.target.value)} /></FormField><FormField label="End date *" error={errors.end_date}><input data-testid="trip-end-date" type="date" value={form.end_date} onChange={(event) => onChange('end_date', event.target.value)} /></FormField><FormField label="Travelers *" error={errors.group_size}><input data-testid="trip-capacity" type="number" min="1" step="1" value={form.group_size} onChange={(event) => onChange('group_size', event.target.value)} /></FormField></div><PreferenceBoard form={form} onChange={onChange} /><FormField className="full-width" label="Anything else for the first draft?"><textarea value={form.notes} onChange={(event) => onChange('notes', event.target.value)} rows={3} placeholder="Dietary needs, neighbourhoods, arrival plans, or group constraints." /></FormField><div className="wizard-actions"><button className="workspace-back-link" type="button" onClick={onBack}><ArrowLeft aria-hidden="true" /> Back</button><button data-testid="trip-continue-button" className="dashboard-create-button" type="button" onClick={onContinue}>Review your plan <ArrowRight aria-hidden="true" /></button></div></div></section>
+function DetailsStep({ form, errors, duplicateWarning, isCheckingDuplicates, onChange, onBack, onContinue }: { form: TripFormValues; errors: Partial<Record<'destination' | 'start_date' | 'end_date' | 'group_size' | 'budget', string>>; duplicateWarning: string | null; isCheckingDuplicates: boolean; onChange: <K extends keyof TripFormValues>(field: K, value: TripFormValues[K]) => void; onBack: () => void; onContinue: () => void }) {
+  return <section className="wizard-stage details-stage"><div className="wizard-stage-intro"><p className="eyebrow"><MapPinned aria-hidden="true" /> Trip details</p><h2>Give Wandora the shape of your journey.</h2><p>Choose the timing and priorities the first draft should protect. These preferences stay visible when your group reviews the route.</p></div><div data-testid="trip-creation-form" className="wizard-panel"><div className="trip-form-grid"><FormField label="Destination *" error={errors.destination}><input data-testid="trip-destination" value={form.destination} onChange={(event) => onChange('destination', event.target.value)} placeholder="e.g. Da Nang, Hoi An & Hue" /></FormField><FormField label="Budget (optional)" error={errors.budget}><input data-testid="trip-budget" type="number" min="0" step="1" value={form.budget} onChange={(event) => onChange('budget', event.target.value)} placeholder="Amount for the group" /></FormField><FormField label="Start date *" error={errors.start_date}><input data-testid="trip-start-date" type="date" value={form.start_date} onChange={(event) => onChange('start_date', event.target.value)} /></FormField><FormField label="End date *" error={errors.end_date}><input data-testid="trip-end-date" type="date" value={form.end_date} onChange={(event) => onChange('end_date', event.target.value)} /></FormField><FormField label="Travelers *" error={errors.group_size}><input data-testid="trip-capacity" type="number" min="1" step="1" value={form.group_size} onChange={(event) => onChange('group_size', event.target.value)} /></FormField></div><PreferenceBoard form={form} onChange={onChange} /><FormField className="full-width" label="Anything else for the first draft?"><textarea value={form.notes} onChange={(event) => onChange('notes', event.target.value)} rows={3} placeholder="Dietary needs, neighbourhoods, arrival plans, or group constraints." /></FormField>{duplicateWarning && <div className="flow-error" role="alert" style={{ marginTop: '1rem', background: '#fffbeb', color: '#b45309', border: '1px solid #fcd34d', padding: '1rem', borderRadius: '0.5rem' }}><CircleAlert aria-hidden="true" /><span>{duplicateWarning}</span></div>}<div className="wizard-actions"><button className="workspace-back-link" type="button" onClick={onBack}><ArrowLeft aria-hidden="true" /> Back</button><button data-testid="trip-continue-button" className="dashboard-create-button" type="button" onClick={onContinue} disabled={isCheckingDuplicates}>{isCheckingDuplicates ? <LoaderCircle className="spin" aria-hidden="true" /> : <ArrowRight aria-hidden="true" />} {duplicateWarning ? 'Continue anyway' : 'Review your plan'}</button></div></div></section>
 }
 
 function PreferenceBoard({ form, onChange }: { form: TripFormValues; onChange: <K extends keyof TripFormValues>(field: K, value: TripFormValues[K]) => void }) {

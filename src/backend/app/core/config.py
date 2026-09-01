@@ -6,7 +6,7 @@ from pathlib import Path
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
 
 
 class Settings(BaseSettings):
@@ -26,9 +26,9 @@ class Settings(BaseSettings):
     db_pool_mode: str = Field(default="session", alias="DB_POOL_MODE")
     db_pool_size: int = Field(default=5, ge=1, alias="DB_POOL_SIZE")
     db_max_overflow: int = Field(default=5, ge=0, alias="DB_MAX_OVERFLOW")
-    gemini_api_key: str | None = Field(default=None, alias="GEMINI_API_KEY")
-    gemini_model: str = Field(default="gemini-1.5-flash", alias="GEMINI_MODEL")
-    gemini_timeout_seconds: int = Field(default=25, ge=5, le=120, alias="GEMINI_TIMEOUT_SECONDS")
+    openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
+    openai_model: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")
+    openai_timeout_seconds: int = Field(default=25, ge=5, le=120, alias="OPENAI_TIMEOUT_SECONDS")
     jwt_secret_key: str = Field(default="wandora_super_secret_jwt_key_2026_change_in_prod_32chars", alias="JWT_SECRET_KEY")
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = Field(default=10080, ge=15, alias="JWT_EXPIRE_MINUTES")

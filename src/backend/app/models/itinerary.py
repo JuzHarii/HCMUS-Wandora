@@ -23,7 +23,7 @@ class ItineraryDay(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     workspace: Mapped["Workspace"] = relationship(back_populates="itinerary_days")
-    activities: Mapped[list["ItineraryActivity"]] = relationship(back_populates="day", cascade="all, delete-orphan", order_by="ItineraryActivity.order_index")
+    activities: Mapped[list["ItineraryActivity"]] = relationship(back_populates="day", cascade="all, delete-orphan", order_by="ItineraryActivity.start_time.asc().nulls_first(), ItineraryActivity.end_time.asc().nulls_first(), ItineraryActivity.order_index")
 
 
 class ItineraryActivity(Base):

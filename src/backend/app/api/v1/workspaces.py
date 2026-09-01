@@ -67,8 +67,8 @@ def get_trip_overview(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TripOverviewResponse:
-    overview = workspace_service.get_trip_overview(db, workspace_id)
-    return TripOverviewResponse.model_validate(overview)
+    overview = WorkspaceService(db).get_trip_overview(workspace_id)
+    return overview
 
 
 @router.post("/{workspace_id}/generate-itinerary", response_model=ItineraryResponse)

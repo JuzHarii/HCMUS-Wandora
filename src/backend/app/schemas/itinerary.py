@@ -154,7 +154,7 @@ class GeneratedDayPayload(BaseModel):
     day_index: int
     title: str
     summary: str | None = None
-    travel_date: date | None = None
+    travel_date: str | None = None
     activities: list[GeneratedActivityPayload] = Field(default_factory=list)
 
 

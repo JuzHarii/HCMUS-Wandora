@@ -1,5 +1,7 @@
 """Authentication endpoints for account registration, login, and session lookup."""
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 

@@ -2,8 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { Navigate, useLocation } from 'react-router'
 
 import { clearAccessToken, getAccessToken, saveAccessToken } from '@/lib/auth-storage'
-import { getCurrentUser, login, signUp, type AuthSession, type AuthUser } from '@/lib/api'
-
+import { authApi, type AuthSession, type AuthUser } from '@/lib/api'
 type AuthContextValue = {
   user: AuthUser | null
   isLoading: boolean
@@ -29,7 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false)
       return
     }
-    void getCurrentUser()
+    void authApi.getCurrentUser()
       .then(setUser)
       .catch(() => clearAccessToken())
       .finally(() => setIsLoading(false))
@@ -38,8 +37,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextValue>(() => ({
     user,
     isLoading,
-    signUp: async (payload) => persist(await signUp(payload), setUser),
-    login: async (payload) => persist(await login(payload), setUser),
+    signUp: async (payload) => persist(await authApi.signUp(payload), setUser),
+    login: async (payload) => persist(await authApi.login(payload), setUser),
     logout: () => {
       clearAccessToken()
       setUser(null)

@@ -191,6 +191,41 @@ async def adjust_itinerary(db: Session, workspace_id: Any, instruction: str) -> 
     return _persist_generated_itinerary(db, workspace_id, days_data, keep_manual=True)
 
 
+def _validate_time_overlap(db: Session, day_id: str, new_start: time | None, new_end: time | None, exclude_activity_id: str | None = None) -> None:
+    if new_start is None:
+        return
+
+    dummy_date = date.today()
+    new_start_dt = datetime.combine(dummy_date, new_start)
+    calc_end = new_end
+    if calc_end is None:
+        calc_end = (new_start_dt + timedelta(hours=1)).time()
+    new_end_dt = datetime.combine(dummy_date, calc_end)
+
+    existing = db.scalars(
+        select(ItineraryActivity).where(ItineraryActivity.day_id == day_id)
+    ).all()
+
+    for act in existing:
+        if exclude_activity_id and act.id == exclude_activity_id:
+            continue
+        if act.start_time is None:
+            continue
+            
+        act_start = datetime.combine(dummy_date, act.start_time)
+        if act.end_time is None:
+            act_end = act_start + timedelta(hours=1)
+        else:
+            act_end = datetime.combine(dummy_date, act.end_time)
+        
+        # (StartA < EndB) and (EndA > StartB)
+        if new_start_dt < act_end and new_end_dt > act_start:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Thời gian bị trùng lặp với hoạt động '{act.title}' ({act.start_time.strftime('%H:%M')} - {act.end_time.strftime('%H:%M') if act.end_time else (act_start + timedelta(hours=1)).strftime('%H:%M')})."
+            )
+
+
 def add_activity(db: Session, payload: ItineraryActivityCreate) -> ItineraryActivity:
     day_id = payload.day_id
 
@@ -220,13 +255,17 @@ def add_activity(db: Session, payload: ItineraryActivityCreate) -> ItineraryActi
     if not day_obj:
         raise HTTPException(status_code=404, detail="Không tìm thấy ngày trong lịch trình (Itinerary Day not found)")
 
+    parsed_start = parse_time_safe(payload.start_time)
+    parsed_end = parse_time_safe(payload.end_time)
+    _validate_time_overlap(db, day_id, parsed_start, parsed_end)
+
     order_val = payload.order_index or payload.sort_order
 
     activity = ItineraryActivity(
         day_id=day_id,
         title=payload.title,
-        start_time=parse_time_safe(payload.start_time),
-        end_time=parse_time_safe(payload.end_time),
+        start_time=parsed_start,
+        end_time=parsed_end,
         location_name=payload.location_name,
         activity_type=payload.activity_type,
         notes=payload.notes,
@@ -246,12 +285,20 @@ def update_activity(db: Session, activity_id: Any, payload: ItineraryActivityUpd
     if not act:
         raise HTTPException(status_code=404, detail="Không tìm thấy hoạt động (Activity not found)")
 
+    new_start_raw = payload.start_time if payload.start_time is not None else act.start_time
+    new_end_raw = payload.end_time if payload.end_time is not None else act.end_time
+    
+    new_start = parse_time_safe(new_start_raw) if isinstance(new_start_raw, str) else new_start_raw
+    new_end = parse_time_safe(new_end_raw) if isinstance(new_end_raw, str) else new_end_raw
+    
+    _validate_time_overlap(db, act.day_id, new_start, new_end, exclude_activity_id=act.id)
+
     if payload.title is not None:
         act.title = payload.title
     if payload.start_time is not None:
-        act.start_time = parse_time_safe(payload.start_time)
+        act.start_time = new_start
     if payload.end_time is not None:
-        act.end_time = parse_time_safe(payload.end_time)
+        act.end_time = new_end
     if payload.location_name is not None:
         act.location_name = payload.location_name
     if payload.notes is not None:
@@ -395,15 +442,52 @@ class ItineraryService:
         self._record_generation(workspace, "restored")
         return self.get_itinerary(workspace_id)
 
+    def _validate_time_overlap(self, day_id: str, new_start: time | None, new_end: time | None, exclude_activity_id: str | None = None) -> None:
+        if new_start is None:
+            return
+
+        dummy_date = date.today()
+        new_start_dt = datetime.combine(dummy_date, new_start)
+        calc_end = new_end
+        if calc_end is None:
+            calc_end = (new_start_dt + timedelta(hours=1)).time()
+        new_end_dt = datetime.combine(dummy_date, calc_end)
+
+        existing = self.db.scalars(
+            select(ItineraryActivity).where(ItineraryActivity.day_id == day_id)
+        ).all()
+
+        for act in existing:
+            if exclude_activity_id and act.id == exclude_activity_id:
+                continue
+            if act.start_time is None:
+                continue
+                
+            act_start = datetime.combine(dummy_date, act.start_time)
+            if act.end_time is None:
+                act_end = act_start + timedelta(hours=1)
+            else:
+                act_end = datetime.combine(dummy_date, act.end_time)
+            
+            # (StartA < EndB) and (EndA > StartB)
+            if new_start_dt < act_end and new_end_dt > act_start:
+                raise ValueError(f"Thời gian bị trùng lặp với hoạt động '{act.title}' ({act.start_time.strftime('%H:%M')} - {act.end_time.strftime('%H:%M') if act.end_time else (act_start + timedelta(hours=1)).strftime('%H:%M')}).")
+
+
     def add_activity(self, payload: ActivityCreate) -> ActivityResponse:
         day = self.db.get(ItineraryDay, payload.day_id)
         if day is None:
             raise ValueError("Ngày lịch trình không tồn tại.")
+            
+        parsed_start = parse_time_safe(payload.start_time)
+        parsed_end = parse_time_safe(payload.end_time)
+        self._validate_time_overlap(day.id, parsed_start, parsed_end)
+        
         activity = ItineraryActivity(
             day_id=day.id,
             title=payload.title,
-            start_time=parse_time_safe(payload.start_time),
-            end_time=parse_time_safe(payload.end_time),
+            start_time=parsed_start,
+            end_time=parsed_end,
             location_name=payload.location_name,
             activity_type=payload.activity_type,
             notes=payload.notes,
@@ -425,10 +509,22 @@ class ItineraryService:
 
     def update_activity(self, activity_id: Any, payload: ActivityUpdate) -> ActivityResponse:
         activity = self.get_activity(activity_id)
-        for field, value in payload.model_dump(exclude_unset=True).items():
+        
+        # Prepare merged data for validation
+        dumped = payload.model_dump(exclude_unset=True)
+        new_start_raw = dumped.get("start_time", activity.start_time)
+        new_end_raw = dumped.get("end_time", activity.end_time)
+        
+        new_start = parse_time_safe(new_start_raw) if isinstance(new_start_raw, str) else new_start_raw
+        new_end = parse_time_safe(new_end_raw) if isinstance(new_end_raw, str) else new_end_raw
+        
+        self._validate_time_overlap(activity.day_id, new_start, new_end, exclude_activity_id=activity.id)
+
+        for field, value in dumped.items():
             if field in ("start_time", "end_time"):
                 value = parse_time_safe(value)
             setattr(activity, field, value)
+            
         self.db.commit()
         self.db.refresh(activity)
         return self._to_activity_response(activity)
