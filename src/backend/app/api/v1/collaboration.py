@@ -18,7 +18,7 @@ async def invite_workspace_member(
     current_user: User = Depends(get_current_user),
 ) -> WorkspaceMemberResponse:
     """Mời thành viên mới vào workspace."""
-    res = collaboration_service.invite_member(db, workspace_id, email=payload.email, role=payload.role)
+    res = collaboration_service.invite_member(db, workspace_id, current_user.id, email=payload.email, role=payload.role)
     return WorkspaceMemberResponse.model_validate(res)
 
 
@@ -42,7 +42,7 @@ async def update_member_role(
     current_user: User = Depends(get_current_user),
 ) -> WorkspaceMemberResponse:
     """Cập nhật vai trò (phân quyền) của thành viên trong workspace."""
-    res = collaboration_service.update_member_role(db, workspace_id, user_id=user_id, new_role=payload.role)
+    res = collaboration_service.update_member_role(db, workspace_id, current_user.id, user_id=user_id, new_role=payload.role)
     return WorkspaceMemberResponse.model_validate(res)
 
 
@@ -54,4 +54,4 @@ async def remove_member(
     current_user: User = Depends(get_current_user),
 ) -> dict[str, str]:
     """Xóa thành viên khỏi workspace."""
-    return collaboration_service.remove_member(db, workspace_id, user_id=user_id)
+    return collaboration_service.remove_member(db, workspace_id, current_user.id, user_id=user_id)

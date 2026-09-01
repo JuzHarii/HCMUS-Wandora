@@ -9,7 +9,18 @@ from ..models.user import User, WorkspaceMember
 from .workspace_service import get_workspace
 
 
-def invite_member(db: Session, workspace_id: Any, email: str, role: str = "member") -> dict[str, Any]:
+def _check_owner(db: Session, workspace_id: Any, current_user_id: Any) -> None:
+    """Kiểm tra xem user hiện tại có quyền Owner hay không."""
+    member = (
+        db.query(WorkspaceMember)
+        .filter(WorkspaceMember.workspace_id == str(workspace_id), WorkspaceMember.user_id == str(current_user_id))
+        .first()
+    )
+    if not member or member.role != "owner":
+        raise HTTPException(status_code=403, detail="Only Trip Owner can manage member invitations.")
+
+
+def invite_member(db: Session, workspace_id: Any, current_user_id: Any, email: str, role: str = "member") -> dict[str, Any]:
     """
     Mời thành viên mới vào workspace thông qua Email.
 
@@ -20,6 +31,7 @@ def invite_member(db: Session, workspace_id: Any, email: str, role: str = "membe
     - Thêm bản ghi `WorkspaceMember` mới với vai trò quy định (`owner`, `editor`, `viewer`, `member`).
     """
     _ = get_workspace(db, workspace_id)
+    _check_owner(db, workspace_id, current_user_id)
 
     email_clean = email.strip().lower()
 
@@ -85,10 +97,11 @@ def list_members(db: Session, workspace_id: Any) -> list[dict[str, Any]]:
     return result
 
 
-def update_member_role(db: Session, workspace_id: Any, user_id: Any, new_role: str) -> dict[str, Any]:
+def update_member_role(db: Session, workspace_id: Any, current_user_id: Any, user_id: Any, new_role: str) -> dict[str, Any]:
     """
     Cập nhật vai trò phân quyền của thành viên trong workspace (ví dụ chuyển từ viewer sang editor).
     """
+    _check_owner(db, workspace_id, current_user_id)
     member = (
         db.query(WorkspaceMember)
         .filter(WorkspaceMember.workspace_id == str(workspace_id), WorkspaceMember.user_id == str(user_id))
@@ -112,10 +125,11 @@ def update_member_role(db: Session, workspace_id: Any, user_id: Any, new_role: s
     }
 
 
-def remove_member(db: Session, workspace_id: Any, user_id: Any) -> dict[str, str]:
+def remove_member(db: Session, workspace_id: Any, current_user_id: Any, user_id: Any) -> dict[str, str]:
     """
     Xóa thành viên khỏi workspace.
     """
+    _check_owner(db, workspace_id, current_user_id)
     member = (
         db.query(WorkspaceMember)
         .filter(WorkspaceMember.workspace_id == str(workspace_id), WorkspaceMember.user_id == str(user_id))
