@@ -8,12 +8,14 @@ __pycache__/
 .coverage
 htmlcov/
 .env
-
+.agents/
 # Local Database & Test Evidence
 *.db
 src/backend/*.db
 backups/
 tests/e2e/screenshots/
+tmp/
 
+extracted_ucs.txt
 # Local Docs / Scratch notes
 docs/backend_usecases_and_functions.md

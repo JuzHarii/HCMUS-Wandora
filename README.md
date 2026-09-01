@@ -28,10 +28,23 @@ Verify database access at `GET http://127.0.0.1:8000/health/db`.
 
 ## Features Covered (UC 2.1 - UC 2.17)
 
-- **UC 2.1 - 2.4**: Trip Creation & Preference Input, AI Itinerary Generator & Adjustment, Manual Places & Links.
-- **UC 2.5 - 2.8**: Group Collaboration & Roles, AI Packing Suggestions & Shared Luggage Planning.
-- **UC 2.9 - 2.11**: Manual Place Notes, Ratings & Reviews, Share & Export Trip Plan (JSON / Markdown).
-- **UC 2.12 - 2.17**: Auth (Register/Login), Save AI Itinerary & DB Persistence, Draft Guard, Comments & Voting, Duplicate Checks, History & Version Control.
+- **UC 2.1**: Trip Creation and Preference Input
+- **UC 2.2**: AI Itinerary Generator
+- **UC 2.3**: AI Itinerary Adjustment
+- **UC 2.4**: Manual Places and External Links
+- **UC 2.5**: Group Collaboration
+- **UC 2.6**: Role and Permission Management
+- **UC 2.7**: AI Packing Suggestions
+- **UC 2.8**: Shared Luggage Planning
+- **UC 2.9**: Manual Place Note Input
+- **UC 2.10**: Place Ratings and Reviews
+- **UC 2.11**: Share or Export Trip Plan
+- **UC 2.12**: User Login and Authentication
+- **UC 2.13**: Review and save AI Itinerary
+- **UC 2.14**: Post-Scheduling Feature Access
+- **UC 2.15**: Group Member Interaction (Voting and Comments)
+- **UC 2.16**: Duplicate/Similar Trip Detection
+- **UC 2.17**: Trip History
 
 ## Documentation
 
