@@ -12,7 +12,7 @@ export function ItineraryTab() {
   const [isLoading, setIsLoading] = useState(true)
   const [isGenerating, setIsGenerating] = useState(false)
   const [isInitializingBlank, setIsInitializingBlank] = useState(false)
-  const [isRestoring, setIsRestoring] = useState(false)
+  const [restoringVersionId, setRestoringVersionId] = useState<string | number | null>(null)
   const [manualActivityCount, setManualActivityCount] = useState(0)
   const [versions, setVersions] = useState<ItineraryVersion[]>([])
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
@@ -98,16 +98,16 @@ export function ItineraryTab() {
 
   async function restoreVersion(version: ItineraryVersion) {
     if (!window.confirm('Restore this saved itinerary? The current itinerary will be replaced.')) return
-    setIsRestoring(true)
+    setRestoringVersionId(version.id)
     setError('')
     try {
-      setItinerary(await workspacesApi.restoreItineraryVersion(workspaceId, version.id))
+      setItinerary(await workspacesApi.restoreItineraryVersion(workspaceId, String(version.id)))
       setIsHistoryOpen(false)
       await loadTrip()
     } catch (restoreError) {
       setError(restoreError instanceof Error ? restoreError.message : 'Could not restore this itinerary version.')
     } finally {
-      setIsRestoring(false)
+      setRestoringVersionId(null)
     }
   }
 
@@ -167,7 +167,7 @@ export function ItineraryTab() {
         </form>
       </section>}
 
-      {isHistoryOpen && <section className="itinerary-history" aria-label="Itinerary version history"><div><p className="dashboard-kicker">Version history</p><h2>Restore a previous draft</h2><p>Each AI regeneration saves the itinerary that came before it.</p></div>{versions.length === 0 ? <p className="history-empty">No previous versions yet. Regenerate once to create a restore point.</p> : <ol>{versions.map((version) => <li key={version.id}><div><strong>{formatGenerationSource(version.generation_source)}</strong><span>{formatVersionTime(version.created_at)}</span></div>{canEdit && <button className="workspace-back-link" type="button" onClick={() => void restoreVersion(version)} disabled={isRestoring}>{isRestoring ? <LoaderCircle className="spin" aria-hidden="true" /> : <RotateCcw aria-hidden="true" />} Restore</button>}</li>)}</ol>}</section>}
+      {isHistoryOpen && <section className="itinerary-history" aria-label="Itinerary version history"><div><p className="dashboard-kicker">Version history</p><h2>Restore a previous draft</h2><p>Each AI regeneration saves the itinerary that came before it.</p></div>{versions.length === 0 ? <p className="history-empty">No previous versions yet. Regenerate once to create a restore point.</p> : <ol>{versions.map((version) => <li key={version.id}><div><strong>{formatGenerationSource(version.generation_source)}</strong><span>{formatVersionTime(version.created_at)}</span></div>{canEdit && <button className="workspace-back-link" type="button" onClick={() => void restoreVersion(version)} disabled={restoringVersionId !== null}>{restoringVersionId === version.id ? <LoaderCircle className="spin" aria-hidden="true" /> : <RotateCcw aria-hidden="true" />} Restore</button>}</li>)}</ol>}</section>}
       <section data-testid="itinerary-view" className="itinerary-timeline" aria-label="Generated itinerary">
         {previewDraft && mappedPreviewItinerary ? (
           <div className="preview-overlay" style={{ border: '2px dashed var(--color-brand)', padding: '1rem', borderRadius: '0.75rem', background: 'var(--color-surface-dim)' }}>
