@@ -16,7 +16,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from config import BASE_URL, DEFAULT_TIMEOUT, SELECTORS
-from conftest import _sign_up_new_user
 from pages.auth_page import AuthPage
 
 

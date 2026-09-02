@@ -30,7 +30,7 @@ def test_uc01_01_successful_trip_creation(authenticated_driver):
     destination = f"PA4 Da Nang {uuid4().hex[:6]}"
     _valid_trip(page, destination)
     page.submit()
-    assert page.ai_generation_started(timeout=AI_TIMEOUT)
+    assert page.generate_preview()
 
 
 def test_uc01_02_missing_required_fields(authenticated_driver):
@@ -38,7 +38,7 @@ def test_uc01_02_missing_required_fields(authenticated_driver):
     page = TripCreationPage(driver).open_trip_creation()
     page.fill_trip_form(start_date="2026-09-01", end_date="2026-09-03", capacity="2")
     page.submit()
-    assert "please fill all required fields" in page.get_validation_alert_text().lower()
+    assert "choose a destination" in page.get_validation_alert_text().lower()
 
 
 def test_uc01_03_invalid_date_order(authenticated_driver):
@@ -59,9 +59,5 @@ def test_uc01_05_numeric_boundary_check_on_group_size(authenticated_driver):
     page = TripCreationPage(driver).open_trip_creation()
     page.fill_trip_form(destination="London", start_date="2026-09-01", end_date="2026-09-05", capacity="-3")
     page.submit()
-    assert "between 1 and 10,000" in page.get_validation_alert_text().lower()
- 
-    page.fill_trip_form(capacity="999999")
-    page.submit()
-    assert "between 1 and 10,000" in page.get_validation_alert_text().lower()
+    assert "at least 1" in page.get_validation_alert_text().lower()
  

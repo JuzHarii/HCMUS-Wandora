@@ -9,7 +9,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from config import AI_TIMEOUT, SELECTORS
 from pages.share_page import SharePage
-from pages.trip_creation_page import TripCreationPage
 from helpers import create_saved_trip
 
 

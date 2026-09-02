@@ -44,7 +44,7 @@ class TripCreationPage(BasePage):
         if capacity is not None:
             self.type_text(SELECTORS["trip_capacity_select"], capacity)
         if budget is not None:
-            self.type_text(SELECTORS["trip_budget_select"], budget)
+            self.type_text(SELECTORS["trip_budget_input"], budget)
         return self
 
     def submit(self):
