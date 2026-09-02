@@ -181,6 +181,25 @@ export function TripCreationPage() {
     }
   }
 
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (step === 'review' && preview && !isSaving && !savedWorkspace) {
+        e.preventDefault()
+        e.returnValue = '' // Required for Chrome to show the prompt
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [step, preview, isSaving, savedWorkspace])
+
+  const handleLeave = (e: React.MouseEvent) => {
+    if (step === 'review' && preview && !savedWorkspace) {
+      if (!window.confirm('Your preview will not be saved as a trip. Are you sure you want to leave?')) {
+        e.preventDefault()
+      }
+    }
+  }
+
   if (savedWorkspace) {
     return <WorkspaceShell><div className="workspace-view wizard-complete-view"><section className="wizard-complete-card"><span className="wizard-complete-mark"><Check aria-hidden="true" /></span><p className="dashboard-kicker">Trip saved</p><h1>Your shared plan is ready.</h1><p>{savedWorkspace.title} now has its first itinerary draft. You can invite teammates from the trip workspace later.</p><button data-testid="open-trip-workspace" className="flow-submit" type="button" onClick={() => navigate(`/trips/${savedWorkspace.id}`)}>Open trip workspace <ArrowRight aria-hidden="true" /></button></section></div></WorkspaceShell>
   }
@@ -188,7 +207,7 @@ export function TripCreationPage() {
   return (
     <WorkspaceShell>
       <div className="workspace-view wizard-view">
-        <header className="workspace-view-header"><div><p className="dashboard-kicker">New shared plan</p><h1>Shape the trip together.</h1></div><Link className="workspace-back-link" to="/home"><ChevronLeft aria-hidden="true" /> My trips</Link></header>
+        <header className="workspace-view-header"><div><p className="dashboard-kicker">New shared plan</p><h1>Shape the trip together.</h1></div><Link className="workspace-back-link" to="/home" onClick={handleLeave}><ChevronLeft aria-hidden="true" /> My trips</Link></header>
         <ol className="trip-wizard-progress" aria-label="Create trip progress">{STEPS.map((item, index) => <li key={item.key} className={index < stepIndex ? 'is-complete' : index === stepIndex ? 'is-active' : ''}><span>{index < stepIndex ? <Check aria-hidden="true" /> : `0${index + 1}`}</span><div><strong>{item.label}</strong><small>{item.caption}</small></div></li>)}</ol>
         {step === 'invitation' && <InvitationStep onContinue={() => void nextStep()} />}
         {step === 'details' && <DetailsStep form={form} errors={errors} duplicateWarning={duplicateWarning} isCheckingDuplicates={isCheckingDuplicates} onChange={updateField} onBack={() => setStep('invitation')} onContinue={() => void nextStep()} />}
