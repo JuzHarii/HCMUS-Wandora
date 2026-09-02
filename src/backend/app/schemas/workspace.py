@@ -78,5 +78,7 @@ class TripOverviewResponse(BaseModel):
     itinerary_activities: int = 0
     manual_activities: int = 0
     current_user_role: str | None = None
+    completed_planning_steps: int = 0
+    total_planning_steps: int = 3
 
     model_config = ConfigDict(from_attributes=True)

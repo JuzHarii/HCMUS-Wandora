@@ -126,6 +126,24 @@ class WorkspaceService:
                 ItineraryActivity.is_manual.is_(True),
             )
         ) or 0
+        # Calculate post-scheduling progress (3 steps total)
+        completed_steps = 0
+        
+        # Step 1: Itinerary Saved (Not Draft)
+        if workspace.status != 'Draft':
+            completed_steps += 1
+
+        # Step 2: Packing List Created
+        from app.models.packing import PackingItem
+        packing_items_count = self.db.query(PackingItem).filter(PackingItem.workspace_id == workspace_id).count()
+        if packing_items_count > 0:
+            completed_steps += 1
+            
+        # Step 3: Members Invited (> 1 member)
+        members_count = self.db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace_id).count()
+        if members_count > 1:
+            completed_steps += 1
+
         return TripOverviewResponse(
             workspace_id=workspace.id,
             title=workspace.title,
@@ -146,4 +164,6 @@ class WorkspaceService:
             itinerary_activities=itinerary_activities,
             manual_activities=manual_activities,
             current_user_role=current_user_role,
+            completed_planning_steps=completed_steps,
+            total_planning_steps=3,
         )

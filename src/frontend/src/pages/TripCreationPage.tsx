@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router'
 
 import { FormField } from '@/components/forms/FormField'
 import { WorkspaceShell } from '@/components/layout/WorkspaceShell'
-import { workspacesApi, tripsApi, type CreateWorkspaceInput, type GeneratedItineraryDay, type ItineraryPreview, type Workspace } from '@/lib/api'
+import { workspacesApi, tripsApi, type CreateWorkspaceInput, type GeneratedItineraryDay, type ItineraryPreview, type Workspace, type GeneratedActivity } from '@/lib/api'
 import { formatDay } from '@/lib/trip-formatters'
 
 type Step = 'invitation' | 'details' | 'review'

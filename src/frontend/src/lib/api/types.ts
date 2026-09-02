@@ -99,6 +99,8 @@ export type TripOverview = {
   itinerary_activities: number
   manual_activities: number
   current_user_role: string | null
+  completed_planning_steps: number
+  total_planning_steps: number
 }
 
 export type CreateWorkspaceInput = {

@@ -3,12 +3,13 @@ import { Link, Outlet, useLocation, useParams } from 'react-router'
 import { CircleAlert, LoaderCircle, Map, Briefcase, Users, Star, Share2 } from 'lucide-react'
 
 import { WorkspaceShell } from '@/components/layout/WorkspaceShell'
-import { workspacesApi, type Workspace } from '@/lib/api'
+import { workspacesApi, type Workspace, type TripOverview } from '@/lib/api'
 
 export function TripWorkspacePage() {
   const { workspaceId = '' } = useParams()
   const { pathname } = useLocation()
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
+  const [overviewData, setOverviewData] = useState<TripOverview | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -18,6 +19,7 @@ export function TripWorkspacePage() {
     try {
       const overview = await workspacesApi.getTripOverview(workspaceId)
       setWorkspace({ ...overview.workspace, current_user_role: overview.current_user_role })
+      setOverviewData(overview)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load this trip.')
     } finally {
@@ -37,7 +39,14 @@ export function TripWorkspacePage() {
       <div className="trip-workspace">
         <header className="workspace-view-header workspace-tabs-header">
           <div>
-            <p className="dashboard-kicker">Shared workspace</p>
+            <p className="dashboard-kicker" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <span>Shared workspace</span>
+              {overviewData && !isDraft && (
+                <span style={{ fontSize: '0.85rem', color: 'var(--color-brand)', fontWeight: 600, background: 'var(--color-brand-muted)', padding: '2px 8px', borderRadius: '999px', opacity: 0.9 }}>
+                  {overviewData.completed_planning_steps} of {overviewData.total_planning_steps} planning steps complete
+                </span>
+              )}
+            </p>
             <h1>{workspace.title}</h1>
           </div>
           <nav className="workspace-tabs">
