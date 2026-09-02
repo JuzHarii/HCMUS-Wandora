@@ -28,6 +28,18 @@ export function ShareTab() {
       const fontBuffer = await fontResponse.arrayBuffer()
       let binary = ''
       const bytes = new Uint8Array(fontBuffer)
+
+      // Boundary Check: Ensure there is at least one activity
+      let hasActivities = false
+      if (itinerary?.days) {
+        hasActivities = itinerary.days.some(day => day.activities && day.activities.length > 0)
+      }
+      
+      if (!hasActivities) {
+        setExportError('Itinerary must contain at least one populated day or activity to export.')
+        setIsExporting(false)
+        return
+      }
       for (let i = 0; i < bytes.byteLength; i++) {
         binary += String.fromCharCode(bytes[i])
       }
