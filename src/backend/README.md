@@ -1,6 +1,6 @@
 # Wandora Backend (FastAPI Service)
 
-Backend dịch vụ cho ứng dụng lập kế hoạch du lịch thông minh Wandora, xây dựng bằng **FastAPI**, **SQLAlchemy 2.0**, **Alembic**, và tích hợp **Google Gemini AI**.
+Backend dịch vụ cho ứng dụng lập kế hoạch du lịch thông minh Wandora, xây dựng bằng **FastAPI**, **SQLAlchemy 2.0**, **Alembic**, và tích hợp dịch vụ AI kèm fallback deterministic cho môi trường local/test.
 
 ---
 
@@ -9,7 +9,7 @@ Backend dịch vụ cho ứng dụng lập kế hoạch du lịch thông minh Wa
 Backend hỗ trợ đầy đủ 11/11 use-cases PA3:
 
 1. **UC 2.1 Trip Creation & Preference Input**: Tạo workspace chuyến đi, lưu điểm đến, ngày đi/về và sở thích du lịch.
-2. **UC 2.2 AI Itinerary Generator**: Tự động sinh lịch trình bằng Gemini AI (`gemini-1.5-flash`) bất đồng bộ kèm bộ sinh dự phòng (fallback).
+2. **UC 2.2 AI Itinerary Generator**: Tự động sinh lịch trình bằng dịch vụ AI bất đồng bộ kèm bộ sinh dự phòng deterministic fallback.
 3. **UC 2.3 AI Itinerary Adjustment**: Điều chỉnh lịch trình theo câu lệnh hướng dẫn của người dùng.
 4. **UC 2.4 Manual Places & External Links**: Thêm/sửa địa điểm thủ công (`is_manual=True`), liên kết ngoài và ghi chú.
 5. **UC 2.5 Group Collaboration**: Mời thành viên qua Email, xem danh sách và xóa thành viên khỏi chuyến đi.
@@ -43,7 +43,6 @@ src/backend/
 │   ├── schemas/                    # Pydantic Schemas cho Request/Response validation
 │   └── services/                   # Logic nghiệp vụ (ai_service, workspace_service, itinerary_service, collaboration_service, packing_service, review_service, share_service)
 ├── migrations/                     # Kịch bản Alembic DB migration
-├── tests/                          # Bộ kiểm thử tự động pytest (11/11 tests pass)
 ├── alembic.ini                     # Cấu hình Alembic migration
 ├── main.py                         # Entry point ứng dụng
 ├── requirements.txt                # Thư viện phụ thuộc
@@ -52,69 +51,72 @@ src/backend/
 
 ---
 
-## 💻 Hướng dẫn Chạy & Phát triển
+## 💻 Hướng dẫn Chạy Backend
 
-### 1. Cài đặt môi trường
+Các lệnh dưới đây nên chạy từ **repository root** để Alembic, Uvicorn và file `.env` dùng cùng một đường dẫn.
 
-```bash
-cd src/backend
-pip install -r requirements.txt
+### 1. Clone repository và tạo virtual environment
+
+```powershell
+git clone https://github.com/JuzHarii/HCMUS-Wandora.git
+cd HCMUS-Wandora
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r src/backend/requirements.txt
 ```
+
+Nếu repository đã được clone rồi, bắt đầu từ `cd HCMUS-Wandora`. Nếu `py -3.11` không có trên máy, dùng `python -m venv .venv`.
 
 ### 2. Cấu hình biến môi trường (`.env`)
 
-Tạo file `.env` từ `.env.example`:
+Backend đọc file `.env` ở repository root. Tạo file này từ `.env.example`:
 
-```env
-APP_NAME="Wandora Backend"
-DEBUG=True
-DATABASE_URL="sqlite:///./wandora.db"
-GEMINI_API_KEY="your_gemini_api_key_here"
-GEMINI_MODEL="gemini-1.5-flash"
+```powershell
+Copy-Item .env.example .env
 ```
 
-*(Nếu không có `GEMINI_API_KEY`, ứng dụng sẽ tự động sử dụng bộ sinh dữ liệu dự phòng deterministic fallback mượt mà).*
+Với local testing đơn giản, đặt:
+
+```env
+DATABASE_URL=sqlite:///./wandora.db
+```
+
+Nếu dùng Supabase/PostgreSQL, thay placeholder `DATABASE_URL` trong `.env.example` bằng connection string thật trước khi chạy migration. Cập nhật thêm `JWT_SECRET_KEY` bằng chuỗi ngẫu nhiên ít nhất 32 ký tự. Không dùng production data cho E2E tests.
 
 ### 3. Thực thi Database Migration (Alembic)
 
-```bash
-alembic upgrade head
+```powershell
+python -m alembic -c src/backend/alembic.ini upgrade heads
 ```
+
+Repository này có thể có nhiều Alembic heads, vì vậy dùng `upgrade heads` thay vì `upgrade head`.
 
 ### 4. Khởi chạy Uvicorn Server
 
-```bash
-uvicorn app.main:app --reload --port 8000
+```powershell
+python -m uvicorn --app-dir src/backend main:app --reload --port 8000
 ```
+
+Backend sẵn sàng khi terminal hiển thị `Application startup complete.`
 
 Truy cập tài liệu API tự động:
 - **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
 - **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 - **Health Check**: [http://localhost:8000/health](http://localhost:8000/health)
+- **Database Health Check**: [http://localhost:8000/health/db](http://localhost:8000/health/db)
 
 ---
 
-## 🧪 Chạy Kiểm thử Tự động (Pytest)
+## 🧪 Chạy Kiểm thử
 
-Chạy bộ kiểm thử tự động toàn bộ 11/11 use-cases:
+PA5 automated Selenium tests nằm ở `tests/e2e` và cần chạy cả backend + frontend. Xem hướng dẫn chi tiết tại:
 
-```bash
-pytest -v
-```
+- [`../../tests/e2e/README.md`](../../tests/e2e/README.md)
 
-Kết quả mong đợi:
+Nếu chỉ muốn kiểm tra backend health sau khi server chạy:
+
 ```text
-tests/test_chat.py::test_chat_flow PASSED
-tests/test_collaboration.py::test_collaboration_flow PASSED
-tests/test_health.py::test_health_endpoint PASSED
-tests/test_integrity.py::test_sqlite_foreign_keys_cascade PASSED
-tests/test_integrity.py::test_unique_constraint_workspace_day_index PASSED
-tests/test_integrity.py::test_parse_time_safe_utils PASSED
-tests/test_itineraries.py::test_itinerary_lifecycle_and_hardening PASSED
-tests/test_packing.py::test_packing_and_luggage_planning PASSED
-tests/test_reviews.py::test_place_reviews PASSED
-tests/test_share.py::test_share_and_export_flow PASSED
-tests/test_workspaces.py::test_create_and_get_workspace PASSED
-
-11 passed in 0.26s
+http://localhost:8000/health
+http://localhost:8000/health/db
 ```

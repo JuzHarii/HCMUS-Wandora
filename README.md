@@ -1,6 +1,6 @@
 # Wandora
 
-Wandora is a web application for AI-assisted group travel planning. It provides a shared workspace for destinations, AI itinerary generation & adjustment, manual activities, group collaboration & roles, AI packing & shared luggage planning, place reviews & notes, trip versioning & history, and trip plan export/sharing.
+Wandora is a web application for AI-assisted group travel planning. It includes trip creation, itinerary generation, collaboration, packing, reviews, and trip sharing/export workflows.
 
 ## Repository Layout
 
@@ -8,85 +8,162 @@ Wandora is a web application for AI-assisted group travel planning. It provides 
 .
 ├── src/backend/   FastAPI application, SQLAlchemy models, Alembic migrations
 ├── src/frontend/  React + Vite application
-├── tests/e2e/     Selenium/Playwright end-to-end tests and page objects
-├── tests/backend/ Backend integration test suites
-├── scripts/       One-off operational and manual smoke scripts
-├── docs/          Architecture, development, testing, and Supabase runbooks
-├── pa/            Course assignment artefacts (not application source)
+├── tests/e2e/     Selenium end-to-end tests and page objects
+├── tests/         Test suites and test support files
+├── pa/            Course assignment artifacts
+├── archive/docs/  Legacy documentation kept for reference only
 └── backups/       Ignored local backup files; never commit these
 ```
 
-## Quick Start
+## Prerequisites
 
-1. Copy `.env.example` to `.env`, set database URL, and set `JWT_SECRET_KEY` (at least 32 characters).
-2. Install backend dependencies: `pip install -r src/backend/requirements.txt`.
-3. Apply schema migrations: `python -m alembic -c src/backend/alembic.ini upgrade heads`.
-4. Run the API: `uvicorn --app-dir src/backend main:app --reload --port 8000`.
-5. In another terminal, set up the frontend: `cd src/frontend; npm install; npm run dev`.
+- Python 3.11 or newer
+- Node.js 20 or newer
+- Git
+- Chrome or Microsoft Edge for Selenium E2E tests
+- A development database. SQLite is enough for local testing; Supabase/PostgreSQL can also be used through `DATABASE_URL`.
 
-Verify database access at `GET http://127.0.0.1:8000/health/db`.
+The commands below are written for Windows PowerShell because the PA5 test workflow was prepared on Windows.
+
+## Clone The Repository
+
+```powershell
+git clone https://github.com/JuzHarii/HCMUS-Wandora.git
+cd HCMUS-Wandora
+```
+
+Run all following commands from the repository root unless a section says otherwise.
+
+## Create And Activate Python Virtual Environment
+
+Create `.venv` once:
+
+```powershell
+py -3.11 -m venv .venv
+```
+
+If `py -3.11` is not available, use:
+
+```powershell
+python -m venv .venv
+```
+
+Activate the virtual environment:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+After activation, your prompt should start with `(.venv)`. All Python commands below assume the virtual environment is active.
+
+If PowerShell blocks activation, run this once in the same terminal:
+
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+Then run `.\.venv\Scripts\Activate.ps1` again.
+
+## Configure Environment Variables
+
+Create a local `.env` file from the example:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+For the simplest local run, set this value in `.env`:
+
+```env
+DATABASE_URL=sqlite:///./wandora.db
+```
+
+If you use Supabase/PostgreSQL instead, replace the placeholder `DATABASE_URL` from `.env.example` with your real database connection string before running migrations.
+
+Also set `JWT_SECRET_KEY` to any random string with at least 32 characters for local development. Do not commit real secrets.
+
+## Install Dependencies
+
+With `(.venv)` active:
+
+```powershell
+python -m pip install --upgrade pip
+python -m pip install -r src/backend/requirements.txt
+python -m pip install -r tests/e2e/requirements.txt
+npm --prefix src/frontend install
+```
+
+## Run The App Locally
+
+Use two PowerShell terminals and keep both running. Activate `.venv` in any terminal that runs backend Python commands.
+
+### Terminal 1 - Backend
+
+```powershell
+cd HCMUS-Wandora
+.\.venv\Scripts\Activate.ps1
+python -m alembic -c src/backend/alembic.ini upgrade heads
+python -m uvicorn --app-dir src/backend main:app --reload --port 8000
+```
+
+The backend is ready when the terminal shows:
+
+```text
+Application startup complete.
+Uvicorn running on http://127.0.0.1:8000
+```
+
+Useful backend URLs:
+
+- API docs: `http://127.0.0.1:8000/docs`
+- Health check: `http://127.0.0.1:8000/health`
+- Database health check: `http://127.0.0.1:8000/health/db`
+
+### Terminal 2 - Frontend
+
+```powershell
+cd HCMUS-Wandora
+npm --prefix src/frontend run dev
+```
+
+Open the Vite local URL shown in the terminal, usually:
+
+```text
+http://localhost:5173/
+```
+
+If Vite starts on another port, use that exact URL in the browser and in Selenium through `WANDORA_BASE_URL`.
 
 ## PA5 Automated Testing
 
-The PA5 Selenium suite is in [`tests/e2e`](tests/e2e/README.md). It automates
-two implemented use cases with two scenarios each:
+The PA5 Selenium suite is documented in [tests/e2e/README.md](tests/e2e/README.md).
+
+It covers the assignment requirement of at least two use cases with two scenarios each:
 
 - UC01 - Trip Creation and Preference Input
 - UC02 - AI Itinerary Generator
 
-Login/sign-up is handled by the pytest fixture because UC01 and UC02 require an
-authenticated user. It is setup for the tested flows, not counted as one of the
-two PA5 use cases.
+Login/sign-up is handled by pytest fixtures because UC01 and UC02 require an authenticated user. Authentication is a test precondition, not one of the two PA5 use cases being counted.
 
-Quick run checklist:
+After Terminal 1 and Terminal 2 are running, open Terminal 3:
 
-1. Start the backend in Terminal 1:
+```powershell
+cd HCMUS-Wandora
+.\.venv\Scripts\Activate.ps1
+python -m pytest tests/e2e/tests -v
+```
 
-   ```powershell
-   .\.venv\Scripts\alembic.exe -c src/backend/alembic.ini upgrade heads
-   .\.venv\Scripts\uvicorn.exe --app-dir src/backend main:app --reload --port 8000
-   ```
+Expected result:
 
-2. Start the frontend in Terminal 2:
+```text
+6 passed
+```
 
-   ```powershell
-   npm --prefix src/frontend run dev
-   ```
+Failed Selenium screenshots are saved under `tests/e2e/screenshots/`.
 
-3. Run Selenium tests from the repository root in Terminal 3:
+## Troubleshooting
 
-   ```powershell
-   .\.venv\Scripts\pip.exe install -r tests/e2e/requirements.txt
-   .\.venv\Scripts\pytest.exe tests/e2e/tests -v
-   ```
-
-For the full PA5 scenario mapping, browser options, screenshots, and port
-troubleshooting, read [`tests/e2e/README.md`](tests/e2e/README.md).
-
-## Features Covered (UC 2.1 - UC 2.17)
-
-- **UC 2.1**: Trip Creation and Preference Input
-- **UC 2.2**: AI Itinerary Generator
-- **UC 2.3**: AI Itinerary Adjustment
-- **UC 2.4**: Manual Places and External Links
-- **UC 2.5**: Group Collaboration
-- **UC 2.6**: Role and Permission Management
-- **UC 2.7**: AI Packing Suggestions
-- **UC 2.8**: Shared Luggage Planning
-- **UC 2.9**: Manual Place Note Input
-- **UC 2.10**: Place Ratings and Reviews
-- **UC 2.11**: Share or Export Trip Plan
-- **UC 2.12**: User Login and Authentication
-- **UC 2.13**: Review and save AI Itinerary
-- **UC 2.14**: Post-Scheduling Feature Access
-- **UC 2.15**: Group Member Interaction (Voting and Comments)
-- **UC 2.16**: Duplicate/Similar Trip Detection
-- **UC 2.17**: Trip History
-
-## Documentation
-
-- [Architecture](docs/ARCHITECTURE.md)
-- [Development notes](docs/DEVELOPMENT.md)
-- [Testing](docs/TESTING.md)
-- [Supabase operations](docs/SUPABASE.md)
-
+- If Alembic reports multiple heads, use `upgrade heads`, not `upgrade head`.
+- If Selenium reports `net::ERR_CONNECTION_REFUSED`, the frontend URL is not reachable. Confirm the Vite URL in Terminal 2 and set `$env:WANDORA_BASE_URL` if the port is not `5173`.
+- If the browser opens and closes immediately, check the pytest failure message first. This usually means Selenium reached the browser but the app URL, backend, or test precondition failed.
+- If Selenium cannot find a driver, install/update Chrome or Edge. Selenium Manager downloads a matching driver automatically when the machine has internet access.

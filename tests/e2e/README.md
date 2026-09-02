@@ -1,48 +1,63 @@
-# PA5 automated Selenium tests
+# PA5 Selenium E2E Tests
 
-This suite covers PA5 automated testing for two implemented Wandora use cases:
+This folder contains the automated browser tests for PA5. The suite uses Selenium WebDriver with pytest and tests the application as a user would use it through the frontend.
 
-- UC01 - Trip Creation and Preference Input
-- UC02 - AI Itinerary Generator
+## Assignment Coverage
 
-Each use case has two automated scenarios. Login/sign-up is handled by a pytest
-fixture because UC01 and UC02 both require an authenticated user as a
-precondition.
+PA5 requires automated testing for at least two use cases, with at least two scenarios per use case. This suite covers:
 
-## Covered scenarios
+| Use case | Scenario | Pytest script | Result |
+| --- | --- | --- | --- |
+| UC01 - Trip Creation and Preference Input | Valid trip details are accepted and the user reaches the itinerary review/generation step. | `tests/e2e/tests/test_uc01_trip_creation.py::test_tc_uc01_01_successful_trip_creation_reaches_review` | Passed |
+| UC01 - Trip Creation and Preference Input | End date before start date is rejected with a validation message. | `tests/e2e/tests/test_uc01_trip_creation.py::test_tc_uc01_03_invalid_date_order_blocks_submission` | Passed |
+| UC02 - AI Itinerary Generator | A valid trip can generate an itinerary preview with activities. | `tests/e2e/tests/test_uc02_itinerary_generation.py::test_tc_uc02_01_successful_ai_preview_generation` | Passed |
+| UC02 - AI Itinerary Generator | The user can bypass AI generation by starting with a blank itinerary and saving it. | `tests/e2e/tests/test_uc02_itinerary_generation.py::test_tc_uc02_03_blank_itinerary_can_be_saved` | Passed |
 
-| Use case | Test script | Scenario |
-| --- | --- | --- |
-| UC01 | `tests/e2e/tests/test_uc01_trip_creation.py::test_tc_uc01_01_successful_trip_creation_reaches_review` | Valid trip details are accepted and the user reaches the itinerary review/generation step. |
-| UC01 | `tests/e2e/tests/test_uc01_trip_creation.py::test_tc_uc01_03_invalid_date_order_blocks_submission` | End date before start date is rejected with a validation message. |
-| UC02 | `tests/e2e/tests/test_uc02_itinerary_generation.py::test_tc_uc02_01_successful_ai_preview_generation` | A valid trip can generate an itinerary preview with activities. |
-| UC02 | `tests/e2e/tests/test_uc02_itinerary_generation.py::test_tc_uc02_03_blank_itinerary_can_be_saved` | The user can bypass AI generation by starting with a blank itinerary and saving it. |
+The suite also includes two authentication smoke tests in `tests/e2e/tests/test_authentication.py`. They are useful checks, but they are not counted as the two PA5 use cases above.
 
-## Setup
+Login/sign-up is performed automatically by the `authenticated_driver` pytest fixture. UC01 and UC02 require a logged-in user, so authentication is treated as a precondition for those flows.
 
-From the repository root:
+## Files
+
+```text
+tests/e2e/
+├── config.py                         Selenium runtime settings and CSS selectors
+├── conftest.py                       WebDriver, login, and screenshot fixtures
+├── pages/                            Page Object helpers
+└── tests/                            Pytest test cases
+```
+
+## One-Time Setup
+
+Run these commands from the repository root:
 
 ```powershell
-cd "D:\HCMUS\Year 3\Sem 3\SE"
-.\.venv\Scripts\pip.exe install -r src/backend/requirements.txt
-.\.venv\Scripts\pip.exe install -r tests/e2e/requirements.txt
+git clone https://github.com/JuzHarii/HCMUS-Wandora.git
+cd HCMUS-Wandora
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+Copy-Item .env.example .env
+python -m pip install --upgrade pip
+python -m pip install -r src/backend/requirements.txt
+python -m pip install -r tests/e2e/requirements.txt
 npm --prefix src/frontend install
 ```
 
-Use a test database, not production data. The tests create fresh accounts and
-trips through the browser.
+If the repository is already cloned, start from `cd HCMUS-Wandora`.
 
-## Start the app
+Use a development/test database. For a simple local run, set `DATABASE_URL=sqlite:///./wandora.db` in the root `.env`. The tests create temporary users and trips through the browser.
 
-Open three PowerShell terminals. Keep Terminal 1 and Terminal 2 running while
-Terminal 3 executes the tests.
+## Start The App
 
-Terminal 1 - backend:
+Open three PowerShell terminals. Keep Terminal 1 and Terminal 2 running while Terminal 3 executes pytest.
+
+### Terminal 1 - Backend
 
 ```powershell
-cd "D:\HCMUS\Year 3\Sem 3\SE"
-.\.venv\Scripts\alembic.exe -c src/backend/alembic.ini upgrade heads
-.\.venv\Scripts\uvicorn.exe --app-dir src/backend main:app --reload --port 8000
+cd HCMUS-Wandora
+.\.venv\Scripts\Activate.ps1
+python -m alembic -c src/backend/alembic.ini upgrade heads
+python -m uvicorn --app-dir src/backend main:app --reload --port 8000
 ```
 
 The backend is ready when you see:
@@ -52,62 +67,128 @@ Application startup complete.
 Uvicorn running on http://127.0.0.1:8000
 ```
 
-Terminal 2 - frontend:
+Quick checks:
+
+```text
+http://127.0.0.1:8000/health
+http://127.0.0.1:8000/health/db
+```
+
+### Terminal 2 - Frontend
 
 ```powershell
-cd "D:\HCMUS\Year 3\Sem 3\SE"
+cd HCMUS-Wandora
 npm --prefix src/frontend run dev
 ```
 
-The frontend is ready when you see a local URL such as:
+The frontend is ready when Vite prints a local URL, usually:
 
 ```text
 Local: http://localhost:5173/
 ```
 
-The default Selenium frontend URL is `http://localhost:5173`.
+The default Selenium target is `http://localhost:5173`.
 
-## Run
+## Run The Tests
 
-Terminal 3 - all PA5 E2E tests:
-
-```powershell
-cd "D:\HCMUS\Year 3\Sem 3\SE"
-.\.venv\Scripts\pytest.exe tests/e2e/tests -v
-```
-
-Run one use case:
+### Terminal 3 - Full PA5 Selenium Suite
 
 ```powershell
-.\.venv\Scripts\pytest.exe tests/e2e/tests/test_uc01_trip_creation.py -v
-.\.venv\Scripts\pytest.exe tests/e2e/tests/test_uc02_itinerary_generation.py -v
+cd HCMUS-Wandora
+.\.venv\Scripts\Activate.ps1
+python -m pytest tests/e2e/tests -v
 ```
 
-Watch the browser instead of running headless:
+Expected summary:
+
+```text
+6 passed
+```
+
+### Run Only One PA5 Use Case
+
+```powershell
+python -m pytest tests/e2e/tests/test_uc01_trip_creation.py -v
+python -m pytest tests/e2e/tests/test_uc02_itinerary_generation.py -v
+```
+
+### Run With A Visible Browser
+
+By default the tests run headless. To watch the browser:
 
 ```powershell
 $env:WANDORA_HEADLESS="false"
-.\.venv\Scripts\pytest.exe tests/e2e/tests -v
+python -m pytest tests/e2e/tests -v
 ```
 
-If the frontend runs on another port:
+Reset it when you want headless mode again:
+
+```powershell
+Remove-Item Env:\WANDORA_HEADLESS
+```
+
+## Runtime Options
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `WANDORA_BASE_URL` | `http://localhost:5173` | Frontend URL used by Selenium. Set this if Vite runs on another port. |
+| `WANDORA_BROWSER` | `chrome` | Browser to use: `chrome`, `edge`, or `firefox`. |
+| `WANDORA_HEADLESS` | `true` | Set to `false`, `0`, or `no` to watch the browser. |
+| `WANDORA_TIMEOUT` | `10` | Default UI wait timeout in seconds. |
+| `WANDORA_AI_TIMEOUT` | `45` | Longer wait timeout for itinerary generation. |
+| `WANDORA_CHROMEDRIVER` | unset | Optional explicit ChromeDriver path. |
+| `WANDORA_EDGEDRIVER` | unset | Optional explicit EdgeDriver path. |
+| `WANDORA_GECKODRIVER` | unset | Optional explicit GeckoDriver path. |
+| `WANDORA_CHROME_BINARY` | unset | Optional Chrome binary path. |
+
+Example for a different Vite port:
 
 ```powershell
 $env:WANDORA_BASE_URL="http://localhost:5174"
-.\.venv\Scripts\pytest.exe tests/e2e/tests -v
+python -m pytest tests/e2e/tests -v
 ```
 
-Failed test screenshots are saved in `tests/e2e/screenshots/`.
+## Screenshots
+
+When a test fails, the fixture saves a screenshot in:
+
+```text
+tests/e2e/screenshots/
+```
+
+Use the screenshot together with the pytest error to determine whether the app failed to load, a selector was missing, or a validation/result assertion failed.
 
 ## Troubleshooting
 
-If Selenium fails with `net::ERR_CONNECTION_REFUSED`, the frontend URL used by
-the tests is not reachable. Open `http://localhost:5173/` in a normal browser
-first. If Vite printed a different port, set `WANDORA_BASE_URL` to that URL.
+### `net::ERR_CONNECTION_REFUSED`
 
-If Alembic prints `Multiple head revisions are present`, use `upgrade heads`
-instead of `upgrade head`.
+Selenium cannot reach the frontend URL. Keep Terminal 2 running, open the Vite URL manually in a normal browser, and make sure `WANDORA_BASE_URL` matches the URL printed by Vite.
 
-If Selenium cannot obtain a browser driver, make sure Chrome or Edge is
-installed and that the machine has internet access the first time Selenium
-Manager resolves the matching driver.
+### Browser opens then closes immediately
+
+This is normal when a test fails early or when headless mode is enabled. Re-run with `$env:WANDORA_HEADLESS="false"` if you want to observe the flow.
+
+### Alembic says multiple heads are present
+
+Use:
+
+```powershell
+python -m alembic -c src/backend/alembic.ini upgrade heads
+```
+
+Do not use `upgrade head` for this repository.
+
+### Backend starts but tests still fail
+
+Confirm both app processes are alive:
+
+```text
+http://127.0.0.1:8000/health/db
+http://localhost:5173/
+```
+
+Also confirm the frontend is calling the backend at `http://127.0.0.1:8000`. If needed, set `VITE_API_BASE_URL` in `src/frontend/.env`.
+
+### Selenium cannot obtain a browser driver
+
+Install or update Chrome/Edge/Firefox. Selenium Manager can resolve the matching driver automatically, but the first run may need internet access.
