@@ -20,11 +20,48 @@ Wandora is a web application for AI-assisted group travel planning. It provides 
 
 1. Copy `.env.example` to `.env`, set database URL, and set `JWT_SECRET_KEY` (at least 32 characters).
 2. Install backend dependencies: `pip install -r src/backend/requirements.txt`.
-3. Apply schema migrations: `python -m alembic -c src/backend/alembic.ini upgrade head`.
+3. Apply schema migrations: `python -m alembic -c src/backend/alembic.ini upgrade heads`.
 4. Run the API: `uvicorn --app-dir src/backend main:app --reload --port 8000`.
 5. In another terminal, set up the frontend: `cd src/frontend; npm install; npm run dev`.
 
 Verify database access at `GET http://127.0.0.1:8000/health/db`.
+
+## PA5 Automated Testing
+
+The PA5 Selenium suite is in [`tests/e2e`](tests/e2e/README.md). It automates
+two implemented use cases with two scenarios each:
+
+- UC01 - Trip Creation and Preference Input
+- UC02 - AI Itinerary Generator
+
+Login/sign-up is handled by the pytest fixture because UC01 and UC02 require an
+authenticated user. It is setup for the tested flows, not counted as one of the
+two PA5 use cases.
+
+Quick run checklist:
+
+1. Start the backend in Terminal 1:
+
+   ```powershell
+   .\.venv\Scripts\alembic.exe -c src/backend/alembic.ini upgrade heads
+   .\.venv\Scripts\uvicorn.exe --app-dir src/backend main:app --reload --port 8000
+   ```
+
+2. Start the frontend in Terminal 2:
+
+   ```powershell
+   npm --prefix src/frontend run dev
+   ```
+
+3. Run Selenium tests from the repository root in Terminal 3:
+
+   ```powershell
+   .\.venv\Scripts\pip.exe install -r tests/e2e/requirements.txt
+   .\.venv\Scripts\pytest.exe tests/e2e/tests -v
+   ```
+
+For the full PA5 scenario mapping, browser options, screenshots, and port
+troubleshooting, read [`tests/e2e/README.md`](tests/e2e/README.md).
 
 ## Features Covered (UC 2.1 - UC 2.17)
 
