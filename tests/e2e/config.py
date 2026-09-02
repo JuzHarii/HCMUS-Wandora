@@ -36,32 +36,37 @@ SELECTORS = {
     "trip_continue_button": "[data-testid='trip-continue-button']",
     "trip_validation_alert": "[data-testid='trip-validation-alert']",
     #"trip_status_badge": "[data-testid='trip-status-badge']",
-    "ai_generation_indicator": "[data-testid='ai-generation-indicator']",
 
     # --- UC02: AI Itinerary Generation ----------------------------------
+    "ai_generation_indicator": "[data-testid='ai-generation-indicator']",
     "generate_preview_button": "[data-testid='generate-preview-button']",
     "save_trip_button": "[data-testid='save-trip-button']",
     "open_trip_workspace": "[data-testid='open-trip-workspace']",
-    #"itinerary_view": "[data-testid='itinerary-view']",
-    #"activity_row": "[data-testid='activity-row']",
     "regenerate_button": "[data-testid='regenerate-itinerary-button']",
     #"generation_lock_overlay": "[data-testid='generation-lock-overlay']",
     #"ai_fallback_dialog": "[data-testid='ai-fallback-dialog']",
     #"ai_fallback_retry_button": "[data-testid='ai-fallback-retry-button']",
     #"ai_fallback_blank_button": "[data-testid='ai-fallback-blank-itinerary-button']",
-    "blank_itinerary_grid": "[data-testid='blank-itinerary-grid']",
+    #"blank_itinerary_grid": "[data-testid='blank-itinerary-grid']",
     "ai_generation_error_alert": "[data-testid='ai-generation-error-alert']",
     "preview_activity_row": "[data-testid='preview-activity-row']",
 
     # --- UC03: AI Itinerary Adjustment ------------------------------------
-    "itinerary_adjustment_input": "[data-testid='itinerary-adjustment-input']",
-    "itinerary_adjustment_submit": "[data-testid='itinerary-adjustment-submit']",
+    "activity_row": "[data-testid='activity-row']",
+    "itinerary_view": "[data-testid='itinerary-view']",
+    #"itinerary_adjustment_input": "[data-testid='itinerary-adjustment-input']",
+    #"itinerary_adjustment_submit": "[data-testid='itinerary-adjustment-submit']",
     #"itinerary_adjustment_preview": "[data-testid='itinerary-adjustment-preview']",
     #"itinerary_adjustment_accept": "[data-testid='itinerary-adjustment-accept']",
     #"itinerary_adjustment_discard": "[data-testid='itinerary-adjustment-discard']",
     #"permission_denied_modal": "[data-testid='permission-denied-modal']",
     #"adjustment_conflict_warning": "[data-testid='adjustment-conflict-warning']",
     "adjustment_error_alert": "[data-testid='adjustment-error-alert']",
+    "members_tab": "[data-testid='members-tab']",
+    "member_invite_email_input": "[data-testid='member-invite-email']",
+    "member_invite_role_select": "[data-testid='member-invite-role']",
+    "member_invite_send_button": "[data-testid='member-invite-send']",
+    "member_list_item": "[data-testid='member-list-item']",
 
     # --- UC04: Manual Places and External Links ---------------------------
     "add_activity_button": "[data-testid='add-activity-button']",
@@ -76,11 +81,7 @@ SELECTORS = {
 
     # --- UC05: Group Collaboration (Screen 2A/2B - Invite Members) -------
     #"members_settings_button": "[data-testid='members-settings-button']",
-    "member_invite_email_input": "[data-testid='member-invite-email']",
-    "member_invite_role_select": "[data-testid='member-invite-role']",
-    "member_invite_send_button": "[data-testid='member-invite-send']",
     #"member_invite_link_display": "[data-testid='member-invite-link']",
-    "member_list_item": "[data-testid='member-list-item']",
     #"invite_permission_denied": "[data-testid='invite-permission-denied']",
     #"invite_duplicate_warning": "[data-testid='invite-duplicate-warning']",
     #"invite_invalid_token_warning": "[data-testid='invite-invalid-token-warning']",
@@ -93,7 +94,8 @@ SELECTORS = {
     #"demote_last_owner_error": "[data-testid='demote-last-owner-error']",
 
     # --- UC07: AI Packing Suggestions (Screen 5A/5B - Packing List tab) --
-    #"packing_tab": "[data-testid='packing-tab']",
+    "workspace_loading": "[data-testid='workspace-loading']",
+    "packing_tab": "[data-testid='packing-tab']",
     "generate_packing_button": "[data-testid='generate-packing-checklist-button']",
     "packing_item_row": "[data-testid='packing-item-row']",
     #"packing_offline_warning": "[data-testid='packing-offline-warning']",

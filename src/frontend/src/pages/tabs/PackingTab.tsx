@@ -115,7 +115,7 @@ export function PackingTab() {
 
   if (isLoading)
     return (
-      <section className="workspace-loading">
+      <section data-testid="workspace-loading" className="workspace-loading">
         <LoaderCircle className="spin" aria-hidden="true" />
         <p>Loading packing list…</p>
       </section>

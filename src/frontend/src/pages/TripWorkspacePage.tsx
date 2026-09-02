@@ -86,6 +86,7 @@ export function TripWorkspacePage() {
             </Link>
             <Link
               to="packing"
+              data-testid="packing-tab"
               className={`workspace-tab ${pathname.includes("/packing") ? "is-active" : ""}`}
               style={isDraft ? { pointerEvents: "none", opacity: 0.5 } : {}}
             >
@@ -93,6 +94,7 @@ export function TripWorkspacePage() {
             </Link>
             <Link
               to="members"
+              data-testid="members-tab"
               className={`workspace-tab ${pathname.includes("/members") ? "is-active" : ""}`}
               style={isDraft ? { pointerEvents: "none", opacity: 0.5 } : {}}
             >
