@@ -1,9 +1,7 @@
-"""Các entity phục vụ lịch trình chuyến đi."""
-
 from datetime import date, datetime, time
 from uuid import uuid4
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, String, Text, Time
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, String, Text, Time, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -13,18 +11,19 @@ class ItineraryDay(Base):
     """Một ngày trong lịch trình."""
 
     __tablename__ = "itinerary_days"
+    __table_args__ = (UniqueConstraint("workspace_id", "day_index", name="uq_itinerary_days_workspace_day_index"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    workspace_id: Mapped[str] = mapped_column(String(36), ForeignKey("workspaces.id"), nullable=False)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
     day_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    date_value: Mapped[date | None] = mapped_column("date", Date, nullable=True)
     travel_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     workspace: Mapped["Workspace"] = relationship(back_populates="itinerary_days")
-    activities: Mapped[list["ItineraryActivity"]] = relationship(back_populates="day", cascade="all, delete-orphan", order_by="ItineraryActivity.sort_order")
+    activities: Mapped[list["ItineraryActivity"]] = relationship(back_populates="day", cascade="all, delete-orphan", order_by="ItineraryActivity.start_time.asc().nulls_first(), ItineraryActivity.end_time.asc().nulls_first(), ItineraryActivity.order_index")
 
 
 class ItineraryActivity(Base):
@@ -33,18 +32,18 @@ class ItineraryActivity(Base):
     __tablename__ = "itinerary_activities"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    day_id: Mapped[str] = mapped_column(String(36), ForeignKey("itinerary_days.id"), nullable=False)
+    day_id: Mapped[str] = mapped_column(ForeignKey("itinerary_days.id", ondelete="CASCADE"), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
     start_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     end_time: Mapped[time | None] = mapped_column(Time, nullable=True)
-    title: Mapped[str] = mapped_column(String(255), nullable=False)
     location_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     activity_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    external_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    external_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     is_manual: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    order_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
     day: Mapped[ItineraryDay] = relationship(back_populates="activities")
 
@@ -55,7 +54,10 @@ class ItineraryVersion(Base):
     __tablename__ = "itinerary_versions"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    workspace_id: Mapped[str] = mapped_column(String(36), ForeignKey("workspaces.id"), nullable=False, index=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     generation_source: Mapped[str | None] = mapped_column(String(32), nullable=True)
     snapshot: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    actor_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    change_summary: Mapped[str | None] = mapped_column(Text, nullable=True)

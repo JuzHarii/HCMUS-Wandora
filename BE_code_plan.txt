@@ -1,0 +1,247 @@
+BACKEND CODE IMPLEMENTATION PLAN (MAIN BRANCH)
+Date: 2026-08-07
+Scope: Build full backend under src/backend while preserving API and service call continuity from reviewed submission branch.
+
+==================================================
+1) GOALS
+==================================================
+- Implement backend from scaffold state to runnable FastAPI service.
+- Preserve baseline endpoint and service call shape used in the reviewed branch.
+- Cover PA3 use-cases 2.1 -> 2.11 with incremental delivery.
+- Fix known critical risks found in prior review during port.
+
+Baseline continuity to keep:
+- App bootstrap: create_app(), init_db(), /health
+- Workspace service:
+  - create_workspace
+  - get_workspace
+  - get_trip_overview
+- Itinerary service:
+  - generate_itinerary_draft
+  - get_itinerary
+  - add_activity
+  - update_activity
+  - adjust_itinerary
+  - _persist_generated_itinerary
+- AI service:
+  - generate_itinerary_draft
+  - _generate_with_gemini
+  - _fallback_draft
+  - _fallback_activities
+  - _build_prompt
+
+Baseline API paths to preserve:
+- /api/v1/workspaces
+- /api/v1/workspaces/{workspace_id}/overview
+- /api/v1/workspaces/{workspace_id}/generate-itinerary
+- /api/v1/workspaces/{workspace_id}/itinerary
+- /api/v1/workspaces/{workspace_id}/adjust-itinerary
+- /api/v1/itineraries/{workspace_id}
+- /api/v1/itineraries/activities
+- /api/v1/itineraries/activities/{activity_id}
+- /api/v1/chat/workspaces/{workspace_id}/messages
+
+==================================================
+2) TARGET BACKEND STRUCTURE (UNDER src/backend)
+==================================================
+src/backend/
+  app/
+    __init__.py
+    main.py
+    core/
+      config.py
+      security.py
+    db/
+      base.py
+      session.py
+      init_db.py
+    models/
+      user.py
+      workspace.py
+      itinerary.py
+      chat.py
+      packing.py
+      review.py
+    schemas/
+      common.py
+      workspace.py
+      itinerary.py
+      chat.py
+      packing.py
+      review.py
+      share.py
+    services/
+      ai_service.py
+      workspace_service.py
+      itinerary_service.py
+      collaboration_service.py
+      packing_service.py
+      review_service.py
+      share_service.py
+    api/
+      router.py
+      deps.py
+      v1/
+        workspaces.py
+        itineraries.py
+        chat.py
+        collaboration.py
+        packing.py
+        reviews.py
+        share.py
+  migrations/
+  tests/
+  requirements.txt
+
+==================================================
+3) SPRINT ROADMAP
+==================================================
+Sprint 0 - Foundation Setup
+- Create backend package skeleton in src/backend.
+- Add FastAPI app entry, config loading, DB session, and startup init.
+- Add CORSMiddleware in app main.py/create_app() for cross-port web clients (frontend localhost:* to backend localhost:8000).
+- Add health endpoint and common error handling.
+- Add migration tool setup (Alembic) and first migration scaffold.
+Deliverable:
+- Service boots and responds at /health.
+- Local DB connects successfully.
+- Browser clients can call API without CORS blocking.
+
+Sprint 1 - Port Baseline UC01-UC08 Core
+- Port and adapt workspace, itinerary, and chat modules from reviewed branch.
+- Preserve endpoint contracts and response shapes.
+- Preserve AI service behavior with Gemini + deterministic fallback.
+- Time handling policy:
+  - start_date/end_date must use strict format (ISO 8601 UTC datetime OR fixed date string YYYY-MM-DD by schema contract).
+  - activity time_slot must use fixed HH:MM format and centralized parser/validator.
+  - Avoid implicit local-time conversions that can shift UTC+7 values.
+- Async readiness for slow AI calls:
+  - Declare router generate-itinerary handler as async def.
+  - Use async HTTP client path for AI provider calls (httpx/async SDK) to avoid blocking request workers.
+- Add smoke tests for:
+  - create workspace
+  - generate itinerary
+  - read itinerary
+  - add/update activity
+  - adjust itinerary
+Deliverable:
+- Baseline flows working in new backend path.
+
+Sprint 2 - Correctness and Data Integrity Hardening
+- Fix critical gaps from previous review:
+  1) Force manual activities to is_manual=True in add_activity.
+  2) Enable SQLite foreign keys on connection startup.
+  3) Actually honor force_regenerate in itinerary generation logic.
+  4) Harden time parsing with safe fallback validation.
+  5) Add unique constraint (workspace_id, day_index) for itinerary days.
+- Add idempotency checks around regeneration/adjust flows.
+- Add strict transaction boundaries for multi-step writes.
+- Persist itinerary generation (_persist_generated_itinerary) in one transaction:
+  - stage all INSERT/UPDATE operations for day/activity graph,
+  - execute one db.commit() at the end only,
+  - on any failure, run db.rollback() to prevent partial/orphaned records.
+Deliverable:
+- Core data consistency and behavior reliability improved.
+
+Sprint 3 - PA3 Collaboration + Packing + Notes/Reviews
+PA3 2.5 Group Collaboration
+- Workspace member join/invite/accept flows.
+- Member listing and activity attribution.
+
+PA3 2.6 Role and Permission Management
+- Roles: owner/editor/viewer (or equivalent).
+- Authorization checks on itinerary mutations and sharing.
+
+PA3 2.7 AI Packing Suggestions
+- Generate packing checklist from trip profile and destinations.
+
+PA3 2.8 Shared Luggage Planning
+- Shared packing list, ownership assignment, completion status.
+
+PA3 2.9 Manual Place Note Input
+- Notes attached to itinerary places/activities.
+
+PA3 2.10 Place Ratings and Reviews
+- Rating + textual review with per-user constraints.
+Deliverable:
+- Endpoints and service logic for PA3 social/planning features.
+
+Sprint 4 - Share/Export + Production Readiness
+PA3 2.11 Share or Export Trip Plan
+- Share links and export endpoints (JSON/PDF/basic ICS if feasible).
+- Access-control checks for share scope.
+
+Operational readiness
+- Add pagination/filtering for list APIs.
+- Add structured logging and request tracing IDs.
+- Add OpenAPI tags/examples and final README for backend runbook.
+Deliverable:
+- Demo-ready PA3 backend with docs and stable APIs.
+
+==================================================
+4) USE-CASE TO MODULE MAPPING
+==================================================
+2.1 Trip Creation and Preference Input -> workspaces + workspace_service
+2.2 AI Itinerary Generator -> itineraries + ai_service + itinerary_service
+2.3 AI Itinerary Adjustment -> itineraries + itinerary_service.adjust_itinerary
+2.4 Manual Places and External Links -> itineraries activity create/update + notes fields
+2.5 Group Collaboration -> collaboration router + collaboration_service
+2.6 Role and Permission Management -> api deps authz + collaboration_service
+2.7 AI Packing Suggestions -> packing router + packing_service + ai_service support
+2.8 Shared Luggage Planning -> packing models + packing_service
+2.9 Manual Place Note Input -> itinerary note fields + review/note service
+2.10 Place Ratings and Reviews -> reviews router + review_service + models
+2.11 Share or Export Trip Plan -> share router + share_service
+
+==================================================
+5) TEST STRATEGY
+==================================================
+- Unit tests:
+  - service-layer business rules
+  - parser/validator utilities
+- Integration tests:
+  - API endpoint contracts and DB persistence
+- Regression tests:
+  - baseline itinerary flows and adjust behavior
+- Security tests:
+  - role-based access checks and unauthorized mutation prevention
+
+Minimum acceptance gate:
+- All baseline endpoints pass integration tests.
+- PA3 endpoints for 2.5-2.11 have happy-path coverage.
+- No critical data integrity failures in transactional flows.
+
+==================================================
+6) RISK REGISTER AND MITIGATION
+==================================================
+Risk: API contract drift during port.
+Mitigation: keep original schema names/fields and add contract tests first.
+
+Risk: AI output format variance breaks parser.
+Mitigation: strict schema validation + fallback route + safe parsing defaults.
+
+Risk: concurrent edits create inconsistent itinerary data.
+Mitigation: DB constraints + row-level checks + transactional writes.
+
+Risk: role model complexity delays delivery.
+Mitigation: deliver minimal role matrix first, then extend permissions.
+
+==================================================
+7) EXECUTION ORDER (PRACTICAL)
+==================================================
+1. Build skeleton + health + DB wiring.
+2. Port baseline routers/services/models/schemas.
+3. Add and run smoke tests for baseline endpoints.
+4. Apply correctness fixes from review.
+5. Implement PA3 modules (collab -> roles -> packing -> notes/reviews -> share/export).
+6. Expand tests and finalize docs.
+
+==================================================
+8) DEFINITION OF DONE
+==================================================
+- src/backend contains runnable FastAPI backend with migrations.
+- Baseline endpoints preserved and verified.
+- PA3 use-cases 2.1-2.11 covered by implemented APIs/services.
+- Known critical review issues fixed.
+- Test suite passes for core and PA3 flows.
+- Backend README/runbook documents setup, env, migrate, run, and test commands.

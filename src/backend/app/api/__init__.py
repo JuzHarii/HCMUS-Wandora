@@ -1,1 +1,1 @@
-"""Tập hợp các API router của ứng dụng."""
+"""Tầng API router của backend."""

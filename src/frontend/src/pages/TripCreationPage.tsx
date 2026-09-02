@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router'
 
 import { FormField } from '@/components/forms/FormField'
 import { WorkspaceShell } from '@/components/layout/WorkspaceShell'
-import { createWorkspace, previewItinerary, saveItineraryDraft, type CreateWorkspaceInput, type GeneratedActivity, type GeneratedItineraryDay, type ItineraryPreview, type Workspace } from '@/lib/api'
+import { workspacesApi, tripsApi, type CreateWorkspaceInput, type GeneratedItineraryDay, type ItineraryPreview, type Workspace, type GeneratedActivity } from '@/lib/api'
 import { formatDay } from '@/lib/trip-formatters'
 
 type Step = 'invitation' | 'details' | 'review'
@@ -41,6 +41,8 @@ export function TripCreationPage() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [apiError, setApiError] = useState('')
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null)
+  const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false)
   const [savedWorkspace, setSavedWorkspace] = useState<Workspace | null>(null)
   const [draftUndo, setDraftUndo] = useState<DraftUndo | null>(null)
   const draftUndoTimer = useRef<number | null>(null)
@@ -64,27 +66,66 @@ export function TripCreationPage() {
     if (!form.start_date) nextErrors.start_date = 'Choose a start date.'
     if (!form.end_date) nextErrors.end_date = 'Choose an end date.'
     if (form.start_date && form.end_date && form.end_date < form.start_date) nextErrors.end_date = 'End date must be after or equal to start date.'
-    if (!Number.isInteger(Number(form.group_size)) || Number(form.group_size) < 1) nextErrors.group_size = 'Enter at least 1 traveler.'
+    const groupSizeNum = Number(form.group_size)
+    if (!Number.isInteger(groupSizeNum) || groupSizeNum < 1 || groupSizeNum > 10000) {
+      nextErrors.group_size = 'Group size must be a valid number between 1 and 10,000.'
+    }
     if (form.budget && (!Number.isInteger(Number(form.budget)) || Number(form.budget) < 0)) nextErrors.budget = 'Budget must be a whole number of 0 or more.'
     setErrors(nextErrors)
     return Object.keys(nextErrors).length === 0
   }
 
-  function nextStep() {
+  async function nextStep() {
     if (step === 'invitation') return setStep('details')
-    if (step === 'details' && validateDetails()) setStep('review')
+    if (step === 'details' && validateDetails()) {
+      if (!duplicateWarning) {
+        setIsCheckingDuplicates(true)
+        try {
+          const res = await tripsApi.checkDuplicates(tripInput)
+          if (res.has_duplicate) {
+            setDuplicateWarning('Warning: You have a trip with similar destination or dates. Are you sure you want to create a new one?')
+            return
+          }
+        } catch (e) {
+          // Ignore if API fails
+        } finally {
+          setIsCheckingDuplicates(false)
+        }
+      }
+      setDuplicateWarning(null)
+      setStep('review')
+    }
   }
 
   async function generatePreview() {
     setIsGenerating(true)
     setApiError('')
     try {
-      setPreview(await previewItinerary(tripInput))
+      setPreview(await workspacesApi.previewItinerary(tripInput))
     } catch (error) {
       setApiError(error instanceof Error ? error.message : 'Could not generate the itinerary draft.')
     } finally {
       setIsGenerating(false)
     }
+  }
+
+  function generateBlankItinerary() {
+    setIsGenerating(false)
+    setApiError('')
+    const days = Array.from({ length: tripDayCount(tripInput.start_date, tripInput.end_date) }).map((_, i) => {
+      const travelDate = new Date(new Date(tripInput.start_date).getTime() + i * 86400000)
+      return {
+        day_index: i + 1,
+        travel_date: travelDate.toISOString().split('T')[0],
+        title: `Day ${i + 1}`,
+        summary: '',
+        activities: []
+      }
+    })
+    setPreview({
+      source: 'fallback',
+      draft: { days }
+    })
   }
 
   function updateDraftDay(dayIndex: number, field: 'title' | 'summary', value: string) {
@@ -130,13 +171,32 @@ export function TripCreationPage() {
     setIsSaving(true)
     setApiError('')
     try {
-      const workspace = await createWorkspace(tripInput)
-      await saveItineraryDraft(workspace.id, preview)
+      const workspace = await workspacesApi.createWorkspace(tripInput)
+      await workspacesApi.saveItineraryDraft(workspace.id, preview)
       setSavedWorkspace(workspace)
     } catch (error) {
       setApiError(error instanceof Error ? error.message : 'Could not save this trip.')
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (step === 'review' && preview && !isSaving && !savedWorkspace) {
+        e.preventDefault()
+        e.returnValue = '' // Required for Chrome to show the prompt
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [step, preview, isSaving, savedWorkspace])
+
+  const handleLeave = (e: React.MouseEvent) => {
+    if (step === 'review' && preview && !savedWorkspace) {
+      if (!window.confirm('Your preview will not be saved as a trip. Are you sure you want to leave?')) {
+        e.preventDefault()
+      }
     }
   }
 
@@ -147,11 +207,11 @@ export function TripCreationPage() {
   return (
     <WorkspaceShell>
       <div className="workspace-view wizard-view">
-        <header className="workspace-view-header"><div><p className="dashboard-kicker">New shared plan</p><h1>Shape the trip together.</h1></div><Link className="workspace-back-link" to="/home"><ChevronLeft aria-hidden="true" /> My trips</Link></header>
+        <header className="workspace-view-header"><div><p className="dashboard-kicker">New shared plan</p><h1>Shape the trip together.</h1></div><Link className="workspace-back-link" to="/home" onClick={handleLeave}><ChevronLeft aria-hidden="true" /> My trips</Link></header>
         <ol className="trip-wizard-progress" aria-label="Create trip progress">{STEPS.map((item, index) => <li key={item.key} className={index < stepIndex ? 'is-complete' : index === stepIndex ? 'is-active' : ''}><span>{index < stepIndex ? <Check aria-hidden="true" /> : `0${index + 1}`}</span><div><strong>{item.label}</strong><small>{item.caption}</small></div></li>)}</ol>
-        {step === 'invitation' && <InvitationStep onContinue={nextStep} />}
-        {step === 'details' && <DetailsStep form={form} errors={errors} onChange={updateField} onBack={() => setStep('invitation')} onContinue={nextStep} />}
-        {step === 'review' && <ReviewStep input={tripInput} preview={preview} isGenerating={isGenerating} isSaving={isSaving} error={apiError} draftUndo={draftUndo} onBack={() => setStep('details')} onGenerate={() => void generatePreview()} onSave={() => void saveTrip()} onUpdateDay={updateDraftDay} onUpdateActivity={updateDraftActivity} onAddActivity={addDraftActivity} onRemoveActivity={removeDraftActivity} onUndoRemoval={undoDraftRemoval} />}
+        {step === 'invitation' && <InvitationStep onContinue={() => void nextStep()} />}
+        {step === 'details' && <DetailsStep form={form} errors={errors} duplicateWarning={duplicateWarning} isCheckingDuplicates={isCheckingDuplicates} onChange={updateField} onBack={() => setStep('invitation')} onContinue={() => void nextStep()} />}
+        {step === 'review' && <ReviewStep input={tripInput} preview={preview} isGenerating={isGenerating} isSaving={isSaving} error={apiError} draftUndo={draftUndo} onBack={() => setStep('details')} onGenerate={() => void generatePreview()} onGenerateBlank={generateBlankItinerary} onSave={() => void saveTrip()} onUpdateDay={updateDraftDay} onUpdateActivity={updateDraftActivity} onAddActivity={addDraftActivity} onRemoveActivity={removeDraftActivity} onUndoRemoval={undoDraftRemoval} />}
       </div>
     </WorkspaceShell>
   )
@@ -161,8 +221,8 @@ function InvitationStep({ onContinue }: { onContinue: () => void }) {
   return <section className="wizard-stage invitation-stage"><div className="wizard-stage-intro"><p className="eyebrow"><UsersRound aria-hidden="true" /> Share from the start</p><h2>Who is planning this trip with you?</h2><p>Trip invitations will be added in the next iteration. For now, start the plan and invite teammates after the shared workspace is ready.</p><span className="wizard-note">You can skip this step without losing any trip details.</span></div><div className="wizard-panel invitation-placeholder"><span><UsersRound aria-hidden="true" /></span><h3>Invitations are coming next</h3><p>This plan stays private to you while you choose the route and preferences.</p><div className="wizard-actions"><button data-testid="trip-invitation-continue" className="dashboard-create-button" type="button" onClick={onContinue}>Continue to details <ArrowRight aria-hidden="true" /></button></div></div></section>
 }
 
-function DetailsStep({ form, errors, onChange, onBack, onContinue }: { form: TripFormValues; errors: Partial<Record<'destination' | 'start_date' | 'end_date' | 'group_size' | 'budget', string>>; onChange: <K extends keyof TripFormValues>(field: K, value: TripFormValues[K]) => void; onBack: () => void; onContinue: () => void }) {
-  return <section className="wizard-stage details-stage"><div className="wizard-stage-intro"><p className="eyebrow"><MapPinned aria-hidden="true" /> Trip details</p><h2>Give Wandora the shape of your journey.</h2><p>Choose the timing and priorities the first draft should protect. These preferences stay visible when your group reviews the route.</p></div><div data-testid="trip-creation-form" className="wizard-panel"><div className="trip-form-grid"><FormField label="Destination *" error={errors.destination}><input data-testid="trip-destination" value={form.destination} onChange={(event) => onChange('destination', event.target.value)} placeholder="e.g. Da Nang, Hoi An & Hue" /></FormField><FormField label="Budget (optional)" error={errors.budget}><input data-testid="trip-budget" type="number" min="0" step="1" value={form.budget} onChange={(event) => onChange('budget', event.target.value)} placeholder="Amount for the group" /></FormField><FormField label="Start date *" error={errors.start_date}><input data-testid="trip-start-date" type="date" value={form.start_date} onChange={(event) => onChange('start_date', event.target.value)} /></FormField><FormField label="End date *" error={errors.end_date}><input data-testid="trip-end-date" type="date" value={form.end_date} onChange={(event) => onChange('end_date', event.target.value)} /></FormField><FormField label="Travelers *" error={errors.group_size}><input data-testid="trip-capacity" type="number" min="1" step="1" value={form.group_size} onChange={(event) => onChange('group_size', event.target.value)} /></FormField></div><PreferenceBoard form={form} onChange={onChange} /><FormField className="full-width" label="Anything else for the first draft?"><textarea value={form.notes} onChange={(event) => onChange('notes', event.target.value)} rows={3} placeholder="Dietary needs, neighbourhoods, arrival plans, or group constraints." /></FormField><div className="wizard-actions"><button className="workspace-back-link" type="button" onClick={onBack}><ArrowLeft aria-hidden="true" /> Back</button><button data-testid="trip-continue-button" className="dashboard-create-button" type="button" onClick={onContinue}>Review your plan <ArrowRight aria-hidden="true" /></button></div></div></section>
+function DetailsStep({ form, errors, duplicateWarning, isCheckingDuplicates, onChange, onBack, onContinue }: { form: TripFormValues; errors: Partial<Record<'destination' | 'start_date' | 'end_date' | 'group_size' | 'budget', string>>; duplicateWarning: string | null; isCheckingDuplicates: boolean; onChange: <K extends keyof TripFormValues>(field: K, value: TripFormValues[K]) => void; onBack: () => void; onContinue: () => void }) {
+  return <section className="wizard-stage details-stage"><div className="wizard-stage-intro"><p className="eyebrow"><MapPinned aria-hidden="true" /> Trip details</p><h2>Give Wandora the shape of your journey.</h2><p>Choose the timing and priorities the first draft should protect. These preferences stay visible when your group reviews the route.</p></div><div data-testid="trip-creation-form" className="wizard-panel"><div className="trip-form-grid"><FormField label="Destination *" error={errors.destination}><input data-testid="trip-destination" value={form.destination} onChange={(event) => onChange('destination', event.target.value)} placeholder="e.g. Da Nang, Hoi An & Hue" /></FormField><FormField label="Budget (optional)" error={errors.budget}><input data-testid="trip-budget" type="number" min="0" step="1" value={form.budget} onChange={(event) => onChange('budget', event.target.value)} placeholder="Amount for the group" /></FormField><FormField label="Start date *" error={errors.start_date}><input data-testid="trip-start-date" type="date" value={form.start_date} onChange={(event) => onChange('start_date', event.target.value)} /></FormField><FormField label="End date *" error={errors.end_date}><input data-testid="trip-end-date" type="date" value={form.end_date} onChange={(event) => onChange('end_date', event.target.value)} /></FormField><FormField label="Travelers *" error={errors.group_size}><input data-testid="trip-capacity" type="number" min="1" step="1" value={form.group_size} onChange={(event) => onChange('group_size', event.target.value)} /></FormField></div><PreferenceBoard form={form} onChange={onChange} /><FormField className="full-width" label="Anything else for the first draft?"><textarea value={form.notes} onChange={(event) => onChange('notes', event.target.value)} rows={3} placeholder="Dietary needs, neighbourhoods, arrival plans, or group constraints." /></FormField>{duplicateWarning && <div className="flow-error" role="alert" style={{ marginTop: '1rem', background: '#fffbeb', color: '#b45309', border: '1px solid #fcd34d', padding: '1rem', borderRadius: '0.5rem' }}><CircleAlert aria-hidden="true" /><span>{duplicateWarning}</span></div>}<div className="wizard-actions"><button className="workspace-back-link" type="button" onClick={onBack}><ArrowLeft aria-hidden="true" /> Back</button><button data-testid="trip-continue-button" className="dashboard-create-button" type="button" onClick={onContinue} disabled={isCheckingDuplicates}>{isCheckingDuplicates ? <LoaderCircle className="spin" aria-hidden="true" /> : <ArrowRight aria-hidden="true" />} {duplicateWarning ? 'Continue anyway' : 'Review your plan'}</button></div></div></section>
 }
 
 function PreferenceBoard({ form, onChange }: { form: TripFormValues; onChange: <K extends keyof TripFormValues>(field: K, value: TripFormValues[K]) => void }) {
@@ -170,8 +230,8 @@ function PreferenceBoard({ form, onChange }: { form: TripFormValues; onChange: <
   return <section className="preference-board"><div><h3>Travel preferences</h3><p>Pick the priorities Wandora should optimize while keeping the group’s constraints visible.</p></div><fieldset><legend>Pace</legend><div className="choice-chips">{PACES.map((pace) => <button type="button" className={form.pace === pace ? 'is-selected' : ''} onClick={() => onChange('pace', pace)} key={pace}>{form.pace === pace && <Check aria-hidden="true" />}{pace}</button>)}</div></fieldset><fieldset><legend>Interests</legend><div className="choice-chips">{INTERESTS.map((interest) => <button type="button" className={form.interests.includes(interest) ? 'is-selected' : ''} onClick={() => toggleInterest(interest)} key={interest}>{form.interests.includes(interest) && <Check aria-hidden="true" />}{interest}</button>)}</div></fieldset><div className="must-see-grid">{form.mustSee.map((place, index) => <label key={index}><small>Must-see {index + 1}</small><input value={place} onChange={(event) => onChange('mustSee', form.mustSee.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={index === 0 ? 'e.g. Hoi An Ancient Town' : 'Optional place'} /></label>)}<label><small>Avoid</small><input value={form.avoid} onChange={(event) => onChange('avoid', event.target.value)} placeholder="e.g. Late-night activities" /></label></div><div className="preference-insight"><Sparkles aria-hidden="true" /><div><strong>AI balance mode is on</strong><p>Wandora will balance your pace, interests, must-see places, and group budget in the first draft.</p></div></div></section>
 }
 
-function ReviewStep({ input, preview, isGenerating, isSaving, error, draftUndo, onBack, onGenerate, onSave, onUpdateDay, onUpdateActivity, onAddActivity, onRemoveActivity, onUndoRemoval }: { input: CreateWorkspaceInput; preview: ItineraryPreview | null; isGenerating: boolean; isSaving: boolean; error: string; draftUndo: DraftUndo | null; onBack: () => void; onGenerate: () => void; onSave: () => void; onUpdateDay: (dayIndex: number, field: 'title' | 'summary', value: string) => void; onUpdateActivity: (dayIndex: number, activityIndex: number, field: 'title' | 'start_time' | 'end_time' | 'location_name', value: string) => void; onAddActivity: (dayIndex: number, activity: GeneratedActivity) => void; onRemoveActivity: (dayIndex: number, activityIndex: number) => void; onUndoRemoval: () => void }) {
-  return <section className="wizard-stage review-stage"><div className="wizard-stage-intro"><p className="eyebrow"><Compass aria-hidden="true" /> Review and draft</p><h2>Check the brief, then let AI map the first route.</h2><p>You can revise the draft here before the trip is saved to your workspace.</p></div><div className="review-layout"><aside className="review-brief"><h3>{input.title}</h3><p>{input.destination}</p><dl><div><dt>When</dt><dd>{input.start_date} to {input.end_date}</dd></div><div><dt>Travelers</dt><dd>{input.group_size}</dd></div><div><dt>Invitations</dt><dd>Invite later</dd></div><div><dt>Pace</dt><dd>{input.travel_style}</dd></div></dl><button className="workspace-back-link" type="button" onClick={onBack}><PencilLine aria-hidden="true" /> Edit details</button></aside><div className="review-draft-area">{!preview && !isGenerating && <div className="draft-empty"><span><Sparkles aria-hidden="true" /></span><h3>Ready for the first itinerary</h3><p>We will generate one day at a time using the preferences you just reviewed.</p><button data-testid="generate-preview-button" className="flow-submit" type="button" onClick={onGenerate}>Generate first itinerary <Sparkles aria-hidden="true" /></button></div>}{isGenerating && <div data-testid="ai-generation-indicator" className="draft-generating" role="status" aria-live="polite"><div className="generation-orbit"><Compass aria-hidden="true" /><i /><i /><i /></div><p className="dashboard-kicker">AI is drafting</p><h3>Turning shared preferences into a route.</h3><p>Finding the right rhythm for each day. This can take up to 25 seconds.</p><div className="draft-skeletons">{Array.from({ length: tripDayCount(input.start_date, input.end_date) }).map((_, index) => <div key={index}><span /><span /><span /></div>)}</div></div>}{preview && <DraftEditorEnhanced preview={preview} isSaving={isSaving} draftUndo={draftUndo} onGenerate={onGenerate} onSave={onSave} onUpdateDay={onUpdateDay} onUpdateActivity={onUpdateActivity} onAddActivity={onAddActivity} onRemoveActivity={onRemoveActivity} onUndoRemoval={onUndoRemoval} />}{error && <div className="flow-error" role="alert"><CircleAlert aria-hidden="true" /><span>{error}</span></div>}</div></div></section>
+function ReviewStep({ input, preview, isGenerating, isSaving, error, draftUndo, onBack, onGenerate, onGenerateBlank, onSave, onUpdateDay, onUpdateActivity, onAddActivity, onRemoveActivity, onUndoRemoval }: { input: CreateWorkspaceInput; preview: ItineraryPreview | null; isGenerating: boolean; isSaving: boolean; error: string; draftUndo: DraftUndo | null; onBack: () => void; onGenerate: () => void; onGenerateBlank: () => void; onSave: () => void; onUpdateDay: (dayIndex: number, field: 'title' | 'summary', value: string) => void; onUpdateActivity: (dayIndex: number, activityIndex: number, field: 'title' | 'start_time' | 'end_time' | 'location_name', value: string) => void; onAddActivity: (dayIndex: number, activity: GeneratedActivity) => void; onRemoveActivity: (dayIndex: number, activityIndex: number) => void; onUndoRemoval: () => void }) {
+  return <section className="wizard-stage review-stage"><div className="wizard-stage-intro"><p className="eyebrow"><Compass aria-hidden="true" /> Review and draft</p><h2>Check the brief, then let AI map the first route.</h2><p>You can revise the draft here before the trip is saved to your workspace.</p></div><div className="review-layout"><aside className="review-brief"><h3>{input.title}</h3><p>{input.destination}</p><dl><div><dt>When</dt><dd>{input.start_date} to {input.end_date}</dd></div><div><dt>Travelers</dt><dd>{input.group_size}</dd></div><div><dt>Invitations</dt><dd>Invite later</dd></div><div><dt>Pace</dt><dd>{input.travel_style}</dd></div></dl><button className="workspace-back-link" type="button" onClick={onBack}><PencilLine aria-hidden="true" /> Edit details</button></aside><div className="review-draft-area">{!preview && !isGenerating && !error && <div className="draft-empty" data-testid="trip-review-ready"><span><Sparkles aria-hidden="true" /></span><h3>Ready for the first itinerary</h3><p>We will generate one day at a time using the preferences you just reviewed.</p><div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center' }}><button data-testid="generate-preview-button" className="flow-submit" type="button" onClick={onGenerate}>Generate first itinerary <Sparkles aria-hidden="true" /></button><button data-testid="blank-itinerary-button" className="recovery-link" type="button" onClick={onGenerateBlank}>Start with a blank itinerary</button></div></div>}{isGenerating && <div data-testid="ai-generation-indicator" className="draft-generating" role="status" aria-live="polite"><div className="generation-orbit"><Compass aria-hidden="true" /><i /><i /><i /></div><p className="dashboard-kicker">AI is drafting</p><h3>Turning shared preferences into a route.</h3><p>Finding the right rhythm for each day. This can take up to 25 seconds.</p><div className="draft-skeletons">{Array.from({ length: tripDayCount(input.start_date, input.end_date) }).map((_, index) => <div key={index}><span /><span /><span /></div>)}</div></div>}{error && !isGenerating && <div className="draft-empty draft-error-fallback" style={{ background: 'var(--color-surface-dim)', borderColor: 'var(--color-border-strong)' }}><span style={{ color: 'var(--color-destructive, #ef4444)', background: '#fee2e2' }}><CircleAlert aria-hidden="true" /></span><h3 style={{ color: 'var(--color-destructive, #ef4444)' }}>AI generation failed</h3><p>{error}</p><div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center', marginTop: '1rem' }}><button className="dashboard-create-button" type="button" onClick={onGenerate}>Try generating again</button><button data-testid="blank-itinerary-button" className="recovery-link" type="button" onClick={onGenerateBlank}>Start with a blank itinerary</button></div></div>}{preview && <DraftEditorEnhanced preview={preview} isSaving={isSaving} draftUndo={draftUndo} onGenerate={onGenerate} onSave={onSave} onUpdateDay={onUpdateDay} onUpdateActivity={onUpdateActivity} onAddActivity={onAddActivity} onRemoveActivity={onRemoveActivity} onUndoRemoval={onUndoRemoval} />}</div></div></section>
 }
 
 export function DraftEditor({ preview, isSaving, onGenerate, onSave, onUpdateDay, onUpdateActivity }: { preview: ItineraryPreview; isSaving: boolean; onGenerate: () => void; onSave: () => void; onUpdateDay: (dayIndex: number, field: 'title' | 'summary', value: string) => void; onUpdateActivity: (dayIndex: number, activityIndex: number, field: 'title' | 'start_time' | 'end_time' | 'location_name', value: string) => void }) {
@@ -207,7 +267,7 @@ function DraftDayCardEnhanced({ day, onUpdateDay, onUpdateActivity, onAddActivit
     setIsAdding(false)
   }
 
-  return <article className="draft-day-card"><header><span>Day {day.day_index} - {formatDay(day.travel_date)}</span><input value={day.title} onChange={(event) => onUpdateDay(day.day_index, 'title', event.target.value)} aria-label={`Day ${day.day_index} title`} /></header><input className="draft-day-summary" value={day.summary ?? ''} onChange={(event) => onUpdateDay(day.day_index, 'summary', event.target.value)} placeholder="Day summary" aria-label={`Day ${day.day_index} summary`} /><ol>{day.activities.map((activity, index) => <li key={`${day.day_index}-${index}`}><div className="draft-time-fields"><input type="time" value={activity.start_time ?? ''} onChange={(event) => onUpdateActivity(day.day_index, index, 'start_time', event.target.value)} /><span>-</span><input type="time" value={activity.end_time ?? ''} onChange={(event) => onUpdateActivity(day.day_index, index, 'end_time', event.target.value)} /></div><input value={activity.title} onChange={(event) => onUpdateActivity(day.day_index, index, 'title', event.target.value)} aria-label="Activity title" /><input value={activity.location_name ?? ''} onChange={(event) => onUpdateActivity(day.day_index, index, 'location_name', event.target.value)} placeholder="Location" aria-label="Activity location" /><button className="activity-icon-button" type="button" aria-label={`Remove ${activity.title}`} title="Remove activity" onClick={() => onRemoveActivity(day.day_index, index)}><Trash2 aria-hidden="true" /></button></li>)}</ol>{!isAdding && <button className="draft-add-activity" type="button" onClick={() => setIsAdding(true)}><Plus aria-hidden="true" /> Add activity</button>}{isAdding && <form className="draft-add-form" onSubmit={submit}><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Activity name" aria-label="New activity name" autoFocus /><input type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} aria-label="New activity start time" /><input type="time" value={endTime} onChange={(event) => setEndTime(event.target.value)} aria-label="New activity end time" /><input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Location (optional)" aria-label="New activity location" />{formError && <p className="form-error" role="alert">{formError}</p>}<div><button className="dashboard-create-button" type="submit"><Plus aria-hidden="true" /> Add</button><button className="recovery-link" type="button" onClick={() => { setIsAdding(false); setFormError('') }}>Cancel</button></div></form>}</article>
+  return <article className="draft-day-card" data-testid="preview-day-card"><header><span>Day {day.day_index} - {formatDay(day.travel_date)}</span><input value={day.title} onChange={(event) => onUpdateDay(day.day_index, 'title', event.target.value)} aria-label={`Day ${day.day_index} title`} /></header><input className="draft-day-summary" value={day.summary ?? ''} onChange={(event) => onUpdateDay(day.day_index, 'summary', event.target.value)} placeholder="Day summary" aria-label={`Day ${day.day_index} summary`} /><ol>{day.activities.map((activity, index) => <li data-testid="preview-activity-row" key={`${day.day_index}-${index}`}><div className="draft-time-fields"><input type="time" value={activity.start_time ?? ''} onChange={(event) => onUpdateActivity(day.day_index, index, 'start_time', event.target.value)} /><span>-</span><input type="time" value={activity.end_time ?? ''} onChange={(event) => onUpdateActivity(day.day_index, index, 'end_time', event.target.value)} /></div><input value={activity.title} onChange={(event) => onUpdateActivity(day.day_index, index, 'title', event.target.value)} aria-label="Activity title" /><input value={activity.location_name ?? ''} onChange={(event) => onUpdateActivity(day.day_index, index, 'location_name', event.target.value)} placeholder="Location" aria-label="Activity location" /><button className="activity-icon-button" type="button" aria-label={`Remove ${activity.title}`} title="Remove activity" onClick={() => onRemoveActivity(day.day_index, index)}><Trash2 aria-hidden="true" /></button></li>)}</ol>{!isAdding && <button className="draft-add-activity" type="button" onClick={() => setIsAdding(true)}><Plus aria-hidden="true" /> Add activity</button>}{isAdding && <form className="draft-add-form" onSubmit={submit}><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Activity name" aria-label="New activity name" autoFocus /><input type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} aria-label="New activity start time" /><input type="time" value={endTime} onChange={(event) => setEndTime(event.target.value)} aria-label="New activity end time" /><input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Location (optional)" aria-label="New activity location" />{formError && <p className="form-error" role="alert">{formError}</p>}<div><button className="dashboard-create-button" type="submit"><Plus aria-hidden="true" /> Add</button><button className="recovery-link" type="button" onClick={() => { setIsAdding(false); setFormError('') }}>Cancel</button></div></form>}</article>
 }
 
 function hasValidDraftActivities(preview: ItineraryPreview) {
