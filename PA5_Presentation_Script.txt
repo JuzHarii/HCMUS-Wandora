@@ -1,0 +1,211 @@
+WANDORA - PRESENTATION SCRIPT & SLIDE CONTENT
+Course: Software Engineering
+Group 11
+
+--- PHÂN BỔ THỜI GIAN VÀ NGƯỜI NÓI (Dự kiến 15 phút) ---
+- Speaker 1 (Lê Thanh Hải - Leader): Slide 1 - 5 (~3.5 phút)
+- Speaker 2 (Bùi Thế Anh - Arch & DB): Slide 6 - 9 (~3.5 phút) 
+- Speaker 3 (Đặng Nhật Minh - Backend & AI): Slide 10 - 12 (~3.5 phút)
+- Speaker 4 (Nguyễn Hoài Đức - Tester): Slide 13 - 18 (~4.5 phút)
+
+
+======================================================
+SLIDE CONTENT & SPEAKER NOTES
+======================================================
+
+--- SPEAKER 1: LÊ THANH HẢI ---
+
+[Slide 1: Title]
+• Title: Wandora - AI-assisted Group Trip Planning and Management Application
+• Team 11:
+  - Lê Thanh Hải (23127360)
+  - Bùi Thế Anh (23127021)
+  - Đặng Nhật Minh (24127077)
+  - Nguyễn Hoài Đức (24127344)
+
+* Speaker Note (Hải): Chào thầy và các bạn. Hôm nay nhóm 11 xin trình bày về dự án Wandora - Ứng dụng hỗ trợ lên lịch trình và quản lý chuyến đi nhóm tích hợp AI.
+
+
+[Slide 2: Problem Statement]
+• The Problem: Group trip planning is highly fragmented.
+• Current methods require multiple separate tools (chat apps, maps, spreadsheets).
+• Impact: 
+  - Time-consuming planning process.
+  - Prone to conflicts when coordinatingProblem statement tasks.
+  - Difficult to manage shared expenses and tracking updates.
+
+* Speaker Note (Hải): Việc lên kế hoạch cho một chuyến đi nhóm hiện tại đang rất rườm rà. Chúng ta phải dùng chat để bàn bạc, dùng Google Maps để tìm đường, dùng Excel để chia tiền. Sự phân mảnh này dẫn đến mất thời gian, dễ gây nhầm lẫn và khó quản lý chi tiêu.
+
+
+[Slide 3: Product Position Statement]
+• For: People who frequently travel in groups.
+• Product: Wandora
+• That: Automates AI itinerary creation, manages luggage, and shares expenses in a centralized workspace.
+• Unlike: Fragmented traditional tools (Notepad, Excel, Messenger).
+• Our solution: Integrates smart AI scheduling with practical collaboration tools.
+
+* Speaker Note (Hải): Để giải quyết vấn đề đó, Wandora ra đời. Wandora tập trung tất cả mọi công cụ vào một workspace duy nhất. Khác với việc phải dùng song song Excel hay Messenger, Wandora dùng AI để tự động lên lịch trình, đồng thời hỗ trợ quản lý hành lý và chia sẻ chi phí trực tiếp trên một nền tảng.
+
+
+[Slide 4: Target Users & Market]
+• Students: Budget-focused, cost optimization, need automatic money-splitting.
+• Young Travelers: Prioritize speed, want an AI assistant to do tedious preparation.
+• Group Organizers: Need centralized information to manage roles, tasks, and avoid confusion.
+• First-time Visitors: Need smart AI suggestions for activities fitting their travel style.
+
+* Speaker Note (Hải): Tập khách hàng chính của chúng mình gồm 4 nhóm: Sinh viên quan tâm đến tối ưu chi phí; Người trẻ thích du lịch tiện lợi muốn AI làm thay các bước chuẩn bị; Trưởng nhóm cần một nơi tập trung thông tin; và Người lần đầu đến một địa điểm cần AI gợi ý.
+
+
+[Slide 5: Competitors & Weaknesses]
+• Current Alternatives: Excel/Google Sheets, Notion, Zalo/Messenger, Google Maps.
+• Weaknesses:
+  - Information is scattered.
+  - Difficult to track updates from other members.
+  - Lack of intelligent automation (no AI smart itinerary suggestions).
+
+* Speaker Note (Hải): Hiện tại thị trường thường dùng các giải pháp chắp vá như kết hợp Google Keep, Zalo, Excel. Điểm yếu lớn nhất của chúng là thông tin rời rạc và hoàn toàn không có khả năng tự động hóa việc gợi ý lịch trình thông minh như AI.
+
+
+--- SPEAKER 2: BÙI THẾ ANH ---
+
+[Slide 6: Project Management & Team Structure]
+• Team Roles:
+  - Lê Thanh Hải: Leader, Frontend UI & Backend Integration
+  - Bùi Thế Anh: Architecture & Database
+  - Đặng Nhật Minh: Backend Implementation & AI Integration
+  - Nguyễn Hoài Đức: Quality Assurance (Tester) & Documentation
+• Management Tools: 
+  - GitHub for source code management.
+  - Jira for progress tracking and task assignment.
+• Process: Independent parallel development based on N-tier architecture.
+
+* Speaker Note (Thế Anh): Chào thầy và các bạn, mình là Thế Anh. Về mặt quản lý dự án, nhóm chia thành 4 vai trò chuyên biệt để có thể làm việc song song hiệu quả. Chúng mình dùng GitHub để quản lý source code và Jira để theo dõi tiến độ công việc hàng tuần.
+
+
+[Slide 7: Software Requirements - Actors]
+• 5 Human Actors (RBAC Model):
+  - Logged-in User: Creates trips & sets preferences.
+  - Trip Owner: Full control over members & settings.
+  - Editor: Can modify trip content.
+  - Viewer: Read-only access, can rate & export.
+  - Invited Member: Joins via secure invite link.
+• 1 Secondary Actor:
+  - AI System (GenAI) for itinerary generation & adjustments.
+
+* Speaker Note (Thế Anh): Hệ thống có 5 actor người dùng với phân quyền RBAC rõ ràng từ Owner, Editor đến Viewer. Ngoài ra còn có 1 actor phụ vô cùng quan trọng là Hệ thống AI.
+
+
+[Slide 8: Key Functional Requirements (Use Cases)]
+• UC01: Trip Creation and Preference Input.
+• UC02: AI Itinerary Generator (Auto-builds morning/afternoon/evening timeline).
+• UC03: AI Itinerary Adjustment (Natural language chat with AI).
+• UC04: Group Collaboration (Secure invite links, real-time sync).
+• UC05: AI Packing Suggestions & Shared Luggage.
+
+* Speaker Note (Thế Anh): Về chức năng chính, hệ thống cho phép khởi tạo chuyến đi, dùng AI sinh lịch trình tự động, chỉnh sửa lịch trình bằng ngôn ngữ tự nhiên, hợp tác nhóm realtime, và gợi ý hành lý mang theo.
+
+
+[Slide 9: Non-Functional Requirements]
+• Usability: Intuitive UI requiring no complex technical skills.
+• Performance: AI generates complete itineraries within seconds.
+• Security & Access: Secure tokens for invite links, Role-Based Access Control.
+• Compatibility: Responsive web application (Mobile to Desktop).
+• Constraints: Zero budget (open-source tools), 9-week development schedule.
+
+* Speaker Note (Thế Anh): Về phi chức năng, Wandora ưu tiên tốc độ phản hồi của AI tính bằng giây, giao diện dễ dùng trên cả điện thoại và máy tính. Đặc biệt hệ thống được xây dựng với ngân sách 0 đồng trong 9 tuần, sử dụng hoàn toàn mã nguồn mở.
+
+
+--- SPEAKER 3: ĐẶNG NHẬT MINH ---
+
+[Slide 10: Analysis & Design - Architectural Goals]
+• Architecture: N-tier architecture model.
+• Key Objectives:
+  - Separation of Concerns: UI, business logic, data storage.
+  - Flexible Integration: Easy connection to third-party GenAI APIs.
+  - Real-time Sync: WebSocket support for live group collaboration.
+  - Concurrency Control: Locking data while AI performs updates.
+
+* Speaker Note (Minh): Chào thầy và các bạn, mình là Minh. Về mặt kiến trúc, Wandora sử dụng mô hình N-tier. Mục tiêu kiến trúc nhằm tách biệt rõ ràng UI và Backend, giúp nhóm phát triển song song, đồng thời hỗ trợ kết nối AI linh hoạt và đồng bộ dữ liệu thời gian thực cho các thành viên trong nhóm.
+
+
+[Slide 11: System Architecture (Logical View)]
+• Web Client (UI): AppShell, TimelineRenderer, WebSocketClient, ChatWidget.
+• Backend Server: AuthRBACService, TripService, ExportService.
+• AI Integration Module: 
+  - GenerationService, NLPService, PackingSuggestionService.
+  - AIClientAdapter (Bridge to OpenAI/Gemini).
+• Collaboration & Persistence: TokenManagement, ConcurrencyControl, CRUDService.
+
+* Speaker Note (Minh): Hệ thống chia thành 4 component logic chính: Web Client xử lý UI và WebSocket; Backend Server quản lý business logic và phân quyền; AI Integration Module nhận nhiệm vụ giao tiếp trực tiếp với LLM; và Collaboration component xử lý database và concurrency control.
+
+
+[Slide 12: Deployment & Technologies Used]
+• Frontend: React, Vite, TypeScript (SPA).
+• Backend: FastAPI (Python 3.11+).
+• Database: PostgreSQL (SQL/TCP).
+• AI Provider: OpenAI/Gemini (HTTPS/JSON).
+• Real-time Communication: WebSockets.
+• Repository: Monorepo structure (Frontend & Backend unified).
+
+* Speaker Note (Minh): Về công nghệ, nhóm dùng React và Vite cho Frontend, FastAPI chạy trên Python cho Backend. Database là PostgreSQL. Ứng dụng triển khai dưới dạng Client-Server, sử dụng HTTP REST cho API thông thường và WebSockets cho Real-time cập nhật.
+
+
+--- SPEAKER 4: NGUYỄN HOÀI ĐỨC ---
+
+[Slide 13: Software Testing - Scope & Environment]
+• Test Scope: 
+  - Functional (Auth, AI Itinerary, Role management, Real-time updates).
+  - Non-functional (Performance, UI compatibility).
+• Test Environment:
+  - Local OS: Windows 10/11.
+  - Runtimes: Python 3.11+, Node.js 20+.
+  - Browser: Google Chrome / Edge.
+
+* Speaker Note (Đức): Chào mọi người, mình là Đức. Về phần kiểm thử, nhóm thực hiện test trên cả chức năng và phi chức năng. Môi trường test chính được thiết lập trên local với đầy đủ Node.js, Python và chạy trên trình duyệt Chrome.
+
+
+[Slide 14: Test Plan & Tools]
+• Defect Tracking: Microsoft Excel / WPS Office.
+• API Testing: Postman (version 11.x).
+• Automated E2E Testing: Selenium WebDriver + pytest.
+• Browser Debugging: Chrome DevTools.
+
+* Speaker Note (Đức): Công cụ test mà chúng mình sử dụng bao gồm Excel để track bugs, Postman để test API độc lập, và đặc biệt dùng Selenium WebDriver kết hợp pytest để chạy tự động kiểm thử e2e trên giao diện.
+
+
+[Slide 15: Automated Testing & Test Results]
+• Automated Scope (PA5):
+  - UC01: Trip Creation & Preference Input.
+  - UC02: AI Itinerary Generator.
+  - Smoke tests for Authentication (Protected routes).
+• Execution & Results:
+  - Command: `pytest tests/e2e/tests -v`
+  - Result: 6/6 test cases PASSED (0 failed).
+  - Execution Time: ~86 seconds.
+  - Conclusion: End-to-end workflow from creation to AI preview works stably.
+
+* Speaker Note (Đức): Kết quả chạy Automation Test bằng Selenium cho thấy 6/6 test cases thuộc UC01 và UC02 đều pass thành công trong khoảng 86 giây. Quá trình sinh lịch trình AI và chặn các nhập liệu sai ngày tháng đều hoạt động chính xác.
+
+
+[Slide 16: Demo Preparation]
+• Key Scenario to Demonstrate:
+  1. Login to Wandora.
+  2. Create a new trip (Input destination, dates, budget).
+  3. Trigger GenAI to build an automated itinerary.
+  4. View the timeline and interact with the AI assistant.
+  
+* Speaker Note (Đức): Và để mọi người hình dung rõ hơn, nhóm xin phép demo trực tiếp kịch bản tạo chuyến đi và sinh lịch trình hoàn toàn bằng AI.
+
+
+[Slide 17: Live Demo]
+• [Switch to Browser for Live Software Demonstration]
+
+* Speaker Note (Đức): (Thực hiện demo trực tiếp thao tác trên phần mềm...)
+
+
+[Slide 18: Summary & Q&A]
+• Summary: Wandora simplifies group travel using AI generation and real-time collaboration.
+• Thank you for listening!
+• Q&A - We are open to your questions.
+
+* Speaker Note (Đức): Xin cảm ơn thầy và các bạn đã lắng nghe phần thuyết trình của nhóm 11. Sau đây nhóm xin nhận các câu hỏi và góp ý ạ.
