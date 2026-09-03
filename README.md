@@ -2,6 +2,17 @@
 
 Wandora is a web application for AI-assisted group travel planning. It includes trip creation, itinerary generation, collaboration, packing, reviews, and trip sharing/export workflows.
 
+## Features
+
+- User authentication with sign-up, sign-in, JWT-based sessions, and protected routes.
+- Trip creation with destination, travel dates, group capacity, budget, and preference input.
+- AI-assisted itinerary generation with deterministic fallback behavior for local/testing environments.
+- Itinerary review and saving before opening the full trip workspace.
+- Trip workspace features including itinerary management, members, packing, reviews, and sharing.
+- Group collaboration support with member roles and trip access control.
+- Trip plan sharing/export support for submitting or distributing travel plans.
+- Selenium end-to-end automated tests for PA5 UC01 and UC02 scenarios.
+
 ## Repository Layout
 
 ```text
